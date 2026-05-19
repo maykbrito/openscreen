@@ -205,6 +205,8 @@ export class FrameRenderer {
 			antialias: true,
 			resolution: 1,
 			autoDensity: true,
+			autoStart: false,
+			sharedTicker: false,
 			powerPreference: "high-performance",
 		};
 		if (this.config.preferWebGPU) {
