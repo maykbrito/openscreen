@@ -170,7 +170,7 @@ export class VideoExporter {
 	}
 
 	// Lightning telemetry
-	private readonly MAX_ENCODE_QUEUE_LIGHTNING = 240;
+	private readonly MAX_ENCODE_QUEUE_LIGHTNING = 2048;
 	private renderStartMs = 0;
 	private framesRenderedSinceStart = 0;
 	private lastFpsSampleMs = 0;
