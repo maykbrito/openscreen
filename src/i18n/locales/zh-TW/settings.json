@@ -107,7 +107,8 @@
 		"pipeline": "管線",
 		"pipelineLegacy": "傳統",
 		"pipelineLightning": "閃電 (測試版)",
-		"pipelineLightningDescription": "閃電 (測試版) 自動使用最快的相容後端，並在需要時回退。"
+		"pipelineLightningHint": "Lightning (Beta) 自動使用最快的相容後端，必要時回退。",
+		"pipelineLegacyHint": "標準匯出管線。速度較慢但相容性最好。"
 	},
 	"links": {
 		"reportBug": "回報錯誤",

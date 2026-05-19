@@ -153,8 +153,24 @@ export class VideoExporter {
 	private lastEncoderOutputAt = 0;
 	private fatalEncoderError: Error | null = null;
 
+	// Breeze (native FFmpeg) integration
+	private breezeSessionId: string | null = null;
+	private breezeAvailable: boolean | null = null;
+	private breezeWriteQueue: Promise<void> = Promise.resolve();
+
+	private async isBreezeAvailable(): Promise<boolean> {
+		if (this.breezeAvailable !== null) return this.breezeAvailable;
+		// Breeze IPC adds per-frame serialization overhead that kills throughput.
+		// WebCodecs + mediabunny path is faster (243 FPS proven). Opt-in only.
+		const breezeOptIn =
+			typeof localStorage !== "undefined" &&
+			localStorage.getItem("openscreen.useBreeze") === "true";
+		this.breezeAvailable = breezeOptIn && !!window.electronAPI?.nativeVideoExportStart;
+		return this.breezeAvailable;
+	}
+
 	// Lightning telemetry
-	private readonly MAX_ENCODE_QUEUE_LIGHTNING = 240;
+	private readonly MAX_ENCODE_QUEUE_LIGHTNING = 2048;
 	private renderStartMs = 0;
 	private framesRenderedSinceStart = 0;
 	private lastFpsSampleMs = 0;
@@ -163,6 +179,16 @@ export class VideoExporter {
 	private currentPipelinePath = "";
 	private get isLightning(): boolean {
 		return this.config.pipeline === "lightning";
+	}
+
+	private async hasWebGPU(): Promise<boolean> {
+		if (!navigator.gpu) return false;
+		try {
+			const adapter = await navigator.gpu.requestAdapter();
+			return !!adapter;
+		} catch {
+			return false;
+		}
 	}
 
 	constructor(config: VideoExporterConfig) {
@@ -238,6 +264,8 @@ export class VideoExporter {
 				webcamInfo = await webcamDecoder.loadMetadata(this.config.webcamVideoUrl);
 			}
 
+			const preferWebGPU = this.isLightning ? await this.hasWebGPU() : false;
+
 			const renderer = new FrameRenderer({
 				width: this.config.width,
 				height: this.config.height,
@@ -270,20 +298,35 @@ export class VideoExporter {
 				cursorTelemetry: this.config.cursorTelemetry,
 				cursorClickTimestamps: this.config.cursorClickTimestamps,
 				platform,
-				preferWebGPU: false,
+				preferWebGPU,
 			});
 			this.renderer = renderer;
 			await renderer.initialize();
 
+			// Start Breeze session if Lightning + native FFmpeg available
+			if (this.isLightning && (await this.isBreezeAvailable())) {
+				this.breezeSessionId = await window.electronAPI!.nativeVideoExportStart({
+					width: this.config.width,
+					height: this.config.height,
+					frameRate: this.config.frameRate,
+				});
+			}
+
 			await this.initializeEncoder(encoderPreference);
 
 			if (this.isLightning) {
-				this.currentPipelinePath = buildPipelinePath({
-					rendererType: renderer.getRendererType(),
-					codec: this.config.codec || "avc1.640033",
-					hardwareAcceleration: encoderPreference,
-					latencyMode: "quality",
-				});
+				console.log(
+					`[VideoExporter] Lightning active! Renderer: ${renderer.getRendererType()}, Breeze: ${!!this.breezeSessionId}, preferWebGPU: ${preferWebGPU}`,
+				);
+				if (this.breezeSessionId) {
+					this.currentPipelinePath = `${renderer.getRendererType() === "webgpu" ? "WebGPU" : "WebGL"} + Breeze (avc1.640034/prefer-hardware)`;
+				} else {
+					this.currentPipelinePath = buildPipelinePath(
+						renderer.getRendererType(),
+						this.config.codec || "avc1.640033",
+						encoderPreference,
+					);
+				}
 				console.log(`[VideoExporter] Lightning path: ${this.currentPipelinePath}`);
 			} else {
 				this.currentPipelinePath = "";
@@ -291,7 +334,7 @@ export class VideoExporter {
 
 			const sourceDemuxer = streamingDecoder.getDemuxer();
 			const audioExportCodec =
-				videoInfo.hasAudio && sourceDemuxer
+				videoInfo.hasAudio && sourceDemuxer && !this.breezeSessionId
 					? await AudioProcessor.selectSupportedExportCodecForSource(sourceDemuxer)
 					: null;
 			if (videoInfo.hasAudio && !audioExportCodec) {
@@ -299,9 +342,11 @@ export class VideoExporter {
 			}
 
 			const hasAudio = Boolean(audioExportCodec);
-			const muxer = new VideoMuxer(this.config, hasAudio, audioExportCodec?.muxerCodec);
-			this.muxer = muxer;
-			await muxer.initialize();
+			if (!this.breezeSessionId) {
+				const muxer = new VideoMuxer(this.config, hasAudio, audioExportCodec?.muxerCodec);
+				this.muxer = muxer;
+				await muxer.initialize();
+			}
 
 			const { totalFrames } = streamingDecoder.getExportMetrics(
 				this.config.frameRate,
@@ -498,6 +543,31 @@ export class VideoExporter {
 				throw this.fatalEncoderError;
 			}
 
+			// Breeze finalization path
+			if (this.breezeSessionId) {
+				// Wait for all queued writes to complete
+				await this.breezeWriteQueue;
+
+				this.reportProgress({
+					currentFrame: totalFrames,
+					totalFrames,
+					percentage: 100,
+					estimatedTimeRemaining: 0,
+					phase: "finalizing",
+				});
+
+				const outputPath = await window.electronAPI!.nativeVideoExportFinish(this.breezeSessionId);
+				this.breezeSessionId = null;
+
+				// Read the output file as a Blob via electronAPI
+				const result = await window.electronAPI!.readBinaryFile(outputPath);
+				if (!result.success || !result.data) {
+					return { success: false, error: "Failed to read Breeze output file" };
+				}
+				const blob = new Blob([result.data], { type: "video/mp4" });
+				return { success: true, blob, warnings: warnings.length > 0 ? warnings : undefined };
+			}
+
 			await Promise.all(this.muxingPromises);
 
 			this.reportProgress({
@@ -510,12 +580,12 @@ export class VideoExporter {
 
 			if (hasAudio && audioExportCodec && !this.cancelled) {
 				const demuxer = streamingDecoder.getDemuxer();
-				if (demuxer) {
+				if (demuxer && this.muxer) {
 					console.log("[VideoExporter] Processing audio track...");
 					this.audioProcessor = new AudioProcessor();
 					await this.audioProcessor.process(
 						demuxer,
-						muxer,
+						this.muxer,
 						this.config.videoUrl,
 						this.config.trimRegions,
 						this.config.speedRegions,
@@ -525,7 +595,7 @@ export class VideoExporter {
 				}
 			}
 
-			const blob = await muxer.finalize();
+			const blob = await this.muxer!.finalize();
 			return { success: true, blob, warnings: warnings.length > 0 ? warnings : undefined };
 		} finally {
 			stopWebcamDecode = true;
@@ -545,9 +615,23 @@ export class VideoExporter {
 		this.fatalEncoderError = null;
 		let videoDescription: Uint8Array | undefined;
 
+		const useBreezeBackend = this.isLightning && this.breezeSessionId !== null;
+
 		this.encoder = new VideoEncoder({
 			output: (chunk, meta) => {
 				this.lastEncoderOutputAt = Date.now();
+
+				if (useBreezeBackend) {
+					// Breeze path: send raw Annex B NALUs to FFmpeg via IPC
+					const buffer = new Uint8Array(chunk.byteLength);
+					chunk.copyTo(buffer);
+					// Queue writes sequentially to preserve frame order
+					this.breezeWriteQueue = this.breezeWriteQueue.then(() =>
+						window.electronAPI!.nativeVideoExportWriteFrame(this.breezeSessionId!, buffer),
+					);
+					this.encodeQueue = Math.max(0, this.encodeQueue - 1);
+					return;
+				}
 
 				if (meta?.decoderConfig?.description && !videoDescription) {
 					const desc = meta.decoderConfig.description;
@@ -607,16 +691,28 @@ export class VideoExporter {
 			},
 		});
 
-		const encoderConfig: VideoEncoderConfig = {
-			codec: this.config.codec || "avc1.640033",
-			width: this.config.width,
-			height: this.config.height,
-			bitrate: this.config.bitrate,
-			framerate: this.config.frameRate,
-			latencyMode: "quality",
-			bitrateMode: "variable",
-			hardwareAcceleration,
-		};
+		const encoderConfig: VideoEncoderConfig = useBreezeBackend
+			? {
+					codec: "avc1.640034",
+					width: this.config.width,
+					height: this.config.height,
+					bitrate: this.config.bitrate,
+					framerate: this.config.frameRate,
+					latencyMode: "quality",
+					bitrateMode: "variable",
+					hardwareAcceleration: "prefer-hardware",
+					avc: { format: "annexb" },
+				}
+			: {
+					codec: this.config.codec || "avc1.640033",
+					width: this.config.width,
+					height: this.config.height,
+					bitrate: this.config.bitrate,
+					framerate: this.config.frameRate,
+					latencyMode: "quality",
+					bitrateMode: "variable",
+					hardwareAcceleration,
+				};
 
 		const support = await VideoEncoder.isConfigSupported(encoderConfig);
 		if (!support.supported) {
@@ -635,6 +731,10 @@ export class VideoExporter {
 
 	cancel(): void {
 		this.cancelled = true;
+		if (this.breezeSessionId) {
+			window.electronAPI?.nativeVideoExportCancel(this.breezeSessionId);
+			this.breezeSessionId = null;
+		}
 		if (this.streamingDecoder) {
 			this.streamingDecoder.cancel();
 		}
@@ -695,6 +795,8 @@ export class VideoExporter {
 		this.videoColorSpace = undefined;
 		this.lastEncoderOutputAt = 0;
 		this.fatalEncoderError = null;
+		this.breezeSessionId = null;
+		this.breezeWriteQueue = Promise.resolve();
 	}
 
 	private getEncoderPreferences(): HardwareAcceleration[] {

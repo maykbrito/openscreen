@@ -211,8 +211,12 @@ export default function VideoEditor() {
 	const [showNewRecordingDialog, setShowNewRecordingDialog] = useState(false);
 	const [exportQuality, setExportQuality] = useState<ExportQuality>("good");
 	const [exportFormat, setExportFormat] = useState<ExportFormat>("mp4");
-	const [exportPipeline, setExportPipeline] = useState<ExportPipeline>("legacy");
-	const [lightningSupport, setLightningSupport] = useState<LightningSupport>({ supported: false });
+	const [exportPipeline, setExportPipeline] = useState<ExportPipeline>("lightning");
+	const [lightningSupport, setLightningSupport] = useState<LightningSupport>({
+		supported: false,
+		hasWebGPU: false,
+		hasWebCodecs: false,
+	});
 	const [gifFrameRate, setGifFrameRate] = useState<GifFrameRate>(15);
 	const [gifLoop, setGifLoop] = useState(true);
 	const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>("medium");
@@ -1802,7 +1806,7 @@ export default function VideoEditor() {
 								frameRate: 60,
 								bitrate,
 								codec: "avc1.640033",
-								pipeline: "legacy",
+								pipeline: "lightning",
 								wallpaper,
 								zoomRegions,
 								trimRegions,

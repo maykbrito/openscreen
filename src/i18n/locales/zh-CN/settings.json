@@ -106,7 +106,8 @@
 		"pipeline": "管线",
 		"pipelineLegacy": "传统",
 		"pipelineLightning": "闪电 (测试版)",
-		"pipelineLightningDescription": "闪电 (测试版) 自动使用最快的兼容后端，并在需要时回退。"
+		"pipelineLightningHint": "Lightning (Beta) 自动使用最快的兼容后端，必要时回退。",
+		"pipelineLegacyHint": "标准导出管线。速度较慢但兼容性最好。"
 	},
 	"links": {
 		"reportBug": "报告错误",

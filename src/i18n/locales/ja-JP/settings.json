@@ -106,7 +106,8 @@
 		"pipeline": "パイプライン",
 		"pipelineLegacy": "レガシー",
 		"pipelineLightning": "Lightning (ベータ)",
-		"pipelineLightningDescription": "Lightning (ベータ) は最も高速な互換バックエンドを自動的に使用し、必要に応じてフォールバックします。"
+		"pipelineLightningHint": "Lightning (Beta) は最速の互換バックエンドを自動選択し、必要に応じてフォールバックします。",
+		"pipelineLegacyHint": "標準エクスポートパイプライン。低速ですが最大限の互換性。"
 	},
 	"links": {
 		"reportBug": "バグを報告",

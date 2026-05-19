@@ -106,7 +106,8 @@
 		"pipeline": "Boru Hattı",
 		"pipelineLegacy": "Eski",
 		"pipelineLightning": "Lightning (Beta)",
-		"pipelineLightningDescription": "Lightning (Beta) otomatik olarak en hızlı uyumlu arka ucu kullanır ve gerektiğinde geri döner."
+		"pipelineLightningHint": "Lightning (Beta) en hızlı uyumlu arka ucu otomatik kullanır ve gerektiğinde geri döner.",
+		"pipelineLegacyHint": "Standart dışa aktarma hattı. Daha yavaş ama maksimum uyumluluk."
 	},
 	"links": {
 		"reportBug": "Hata Bildir",

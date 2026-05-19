@@ -46,3 +46,7 @@ result-*
 
 # Worktrees
 .worktrees/
+
+# Native build artifacts
+electron/native/screencapturekit/build/
+electron/native/bin/

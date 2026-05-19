@@ -35,6 +35,8 @@ export type ExportQuality = "medium" | "good" | "source";
 
 export type ExportPipeline = "legacy" | "lightning";
 
+export type ExportBackend = "webcodecs" | "breeze" | "auto";
+
 // GIF Export Types
 export type ExportFormat = "mp4" | "gif" | "frame";
 
