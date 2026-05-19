@@ -55,14 +55,23 @@ export function registerFfmpegPostProcessHandler(): void {
 
 				if (speedUp) {
 					args.push("-vf", "setpts=PTS/1.15");
-					args.push("-af", "atempo=1.15");
 				}
 
 				if (compress) {
 					args.push("-c:v", "libx264", "-crf", "23", "-preset", "medium");
+				} else if (speedUp) {
+					// When only speeding up, still need to re-encode video
+					args.push("-c:v", "libx264", "-crf", "23", "-preset", "medium");
+				}
+
+				// Handle audio: use atempo for speed, aac for codec, or -an if no audio
+				if (speedUp) {
+					args.push("-af", "atempo=1.15", "-c:a", "aac");
+				} else if (compress) {
 					args.push("-c:a", "aac");
 				}
 
+				// If no audio stream exists, ffmpeg will just ignore -af/-c:a
 				args.push(tempPath);
 
 				await execFileAsync(ffmpegPath, args, { timeout: 300000 });

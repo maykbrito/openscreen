@@ -1805,7 +1805,14 @@ export default function VideoEditor() {
 
 								if (!postResult.success) {
 									console.error("Post-processing failed:", postResult.message);
-									// Don't fail the export - file is already saved
+									toast.error(`Post-processing failed: ${postResult.message}`);
+								} else if (postResult.originalSize && postResult.finalSize) {
+									const reduction = Math.round(
+										(1 - postResult.finalSize / postResult.originalSize) * 100,
+									);
+									console.log(
+										`Post-processing: ${postResult.originalSize} → ${postResult.finalSize} (${reduction}% reduction)`,
+									);
 								}
 							}
 
