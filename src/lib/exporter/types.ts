@@ -87,6 +87,9 @@ export interface ExportSettings {
 	gifConfig?: GifExportConfig;
 	// Frame settings
 	frameConfig?: FrameExportConfig;
+	// Post-processing options (MP4 only)
+	compressFile?: boolean; // Re-encode with CRF 23 for ~85-90% size reduction
+	speedUp?: boolean; // Accelerate video by 1.15x
 }
 
 export const GIF_SIZE_PRESETS: Record<GifSizePreset, { maxHeight: number; label: string }> = {
