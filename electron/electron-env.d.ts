@@ -264,6 +264,7 @@ interface Window {
 		nativeVideoExportWriteFrame: (sessionId: string, frameData: Uint8Array) => Promise<void>;
 		nativeVideoExportFinish: (sessionId: string) => Promise<string>;
 		nativeVideoExportCancel: (sessionId: string) => Promise<void>;
+		nativeVideoExportMuxAudio: (videoPath: string, audioPath: string) => Promise<string>;
 		setLocale: (locale: string) => Promise<void>;
 		saveDiagnostic: (payload: {
 			error: string;

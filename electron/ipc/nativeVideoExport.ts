@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { accessSync } from "node:fs";
+import { accessSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -120,4 +120,48 @@ export function cancelNativeExport(sessionId: string): void {
 		session.process.kill("SIGKILL");
 		sessions.delete(sessionId);
 	}
+}
+
+export async function muxAudio(videoPath: string, audioPath: string): Promise<string> {
+	const ffmpegPath = getFFmpegPath();
+	const finalPath = videoPath.replace(".mp4", "-final.mp4");
+
+	const args = [
+		"-y",
+		"-hide_banner",
+		"-loglevel",
+		"error",
+		"-i",
+		videoPath,
+		"-i",
+		audioPath,
+		"-c:v",
+		"copy",
+		"-c:a",
+		"aac",
+		"-b:a",
+		"192k",
+		"-shortest",
+		"-movflags",
+		"+faststart",
+		finalPath,
+	];
+
+	const proc = spawn(ffmpegPath, args, { stdio: ["ignore", "ignore", "pipe"] });
+
+	return new Promise<string>((resolve, reject) => {
+		proc.on("close", (code) => {
+			if (code === 0) {
+				try {
+					unlinkSync(videoPath);
+				} catch {
+					// Ignore cleanup errors
+				}
+				resolve(finalPath);
+			} else {
+				reject(new Error(`FFmpeg audio mux exited with code ${code}`));
+			}
+		});
+		proc.on("error", reject);
+	});
 }

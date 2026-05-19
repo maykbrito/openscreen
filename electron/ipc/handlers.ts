@@ -44,6 +44,7 @@ import { registerNativeBridgeHandlers } from "./nativeBridge";
 import {
 	cancelNativeExport,
 	finishNativeExport,
+	muxAudio,
 	startNativeExport,
 	writeNativeFrame,
 } from "./nativeVideoExport";
@@ -2722,6 +2723,10 @@ export function registerIpcHandlers(
 	ipcMain.handle("native-video-export-cancel", (_, sessionId: string) => {
 		cancelNativeExport(sessionId);
 	});
+
+	ipcMain.handle("native-video-export-mux-audio", (_event, videoPath: string, audioPath: string) =>
+		muxAudio(videoPath, audioPath),
+	);
 
 	registerNativeBridgeHandlers({
 		getPlatform: () => process.platform,
