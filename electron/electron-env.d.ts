@@ -210,6 +210,7 @@ interface Window {
 			projectData: unknown,
 			suggestedName?: string,
 			existingProjectPath?: string,
+			defaultDir?: string,
 		) => Promise<{
 			success: boolean;
 			path?: string;
@@ -217,7 +218,7 @@ interface Window {
 			canceled?: boolean;
 			error?: string;
 		}>;
-		loadProjectFile: () => Promise<{
+		loadProjectFile: (defaultDir?: string) => Promise<{
 			success: boolean;
 			path?: string;
 			project?: unknown;

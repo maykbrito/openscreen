@@ -2400,8 +2400,14 @@ export function registerIpcHandlers(
 
 	ipcMain.handle(
 		"save-project-file",
-		async (_, projectData: unknown, suggestedName?: string, existingProjectPath?: string) => {
-			return saveProjectFile(projectData, suggestedName, existingProjectPath);
+		async (
+			_,
+			projectData: unknown,
+			suggestedName?: string,
+			existingProjectPath?: string,
+			defaultDir?: string,
+		) => {
+			return saveProjectFile(projectData, suggestedName, existingProjectPath, defaultDir);
 		},
 	);
 
@@ -2409,6 +2415,7 @@ export function registerIpcHandlers(
 		projectData: unknown,
 		suggestedName?: string,
 		existingProjectPath?: string,
+		defaultDir?: string,
 	): Promise<ProjectFileResult> {
 		try {
 			const trustedExistingProjectPath = isTrustedProjectPath(existingProjectPath)
@@ -2437,7 +2444,7 @@ export function registerIpcHandlers(
 			const dialogOptions = buildDialogOptions(
 				{
 					title: mainT("dialogs", "fileDialogs.saveProject"),
-					defaultPath: path.join(RECORDINGS_DIR, defaultName),
+					defaultPath: path.join(defaultDir || RECORDINGS_DIR, defaultName),
 					filters: [
 						{
 							name: mainT("dialogs", "fileDialogs.openscreenProject"),
@@ -2477,16 +2484,16 @@ export function registerIpcHandlers(
 		}
 	}
 
-	ipcMain.handle("load-project-file", async () => {
-		return loadProjectFile();
+	ipcMain.handle("load-project-file", async (_event, defaultDir?: string) => {
+		return loadProjectFile(defaultDir);
 	});
 
-	async function loadProjectFile(): Promise<ProjectFileResult> {
+	async function loadProjectFile(defaultDir?: string): Promise<ProjectFileResult> {
 		try {
 			const dialogOptions = buildDialogOptions(
 				{
 					title: mainT("dialogs", "fileDialogs.openProject"),
-					defaultPath: RECORDINGS_DIR,
+					defaultPath: defaultDir || RECORDINGS_DIR,
 					filters: [
 						{
 							name: mainT("dialogs", "fileDialogs.openscreenProject"),

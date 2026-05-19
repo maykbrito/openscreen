@@ -597,6 +597,7 @@ export default function VideoEditor() {
 				projectData,
 				fileNameBase,
 				forceSaveAs ? undefined : (currentProjectPath ?? undefined),
+				loadUserPreferences().lastProjectSaveDirectory ?? undefined,
 			);
 
 			if (result.canceled) {
@@ -611,6 +612,8 @@ export default function VideoEditor() {
 
 			if (result.path) {
 				setCurrentProjectPath(result.path);
+				const dir = parentDirectoryOf(result.path);
+				if (dir) saveUserPreferences({ lastProjectSaveDirectory: dir });
 			}
 			setLastSavedSnapshot(projectSnapshot);
 
@@ -698,7 +701,9 @@ export default function VideoEditor() {
 	}, []);
 
 	const handleLoadProject = useCallback(async () => {
-		const result = await nativeBridgeClient.project.loadProjectFile();
+		const result = await nativeBridgeClient.project.loadProjectFile(
+			loadUserPreferences().lastProjectOpenDirectory ?? undefined,
+		);
 
 		if (result.canceled) {
 			return;
@@ -707,6 +712,11 @@ export default function VideoEditor() {
 		if (!result.success) {
 			toast.error(result.message || t("project.failedToLoad"));
 			return;
+		}
+
+		if (result.path) {
+			const dir = parentDirectoryOf(result.path);
+			if (dir) saveUserPreferences({ lastProjectOpenDirectory: dir });
 		}
 
 		const restored = await applyLoadedProject(result.project, result.path ?? null);

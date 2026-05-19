@@ -159,13 +159,14 @@ export type NativeBridgeRequest =
 				projectData: unknown;
 				suggestedName?: string;
 				existingProjectPath?: string;
+				defaultDir?: string;
 			};
 			requestId?: string;
 	  }
 	| {
 			domain: "project";
 			action: "loadProjectFile";
-			payload?: EmptyPayload;
+			payload?: { defaultDir?: string };
 			requestId?: string;
 	  }
 	| {

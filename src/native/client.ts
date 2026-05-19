@@ -74,7 +74,12 @@ export const nativeBridgeClient = {
 				domain: "project",
 				action: "getCurrentContext",
 			}),
-		saveProjectFile: (projectData: unknown, suggestedName?: string, existingProjectPath?: string) =>
+		saveProjectFile: (
+			projectData: unknown,
+			suggestedName?: string,
+			existingProjectPath?: string,
+			defaultDir?: string,
+		) =>
 			requireNativeBridgeData<ProjectFileResult>({
 				domain: "project",
 				action: "saveProjectFile",
@@ -82,12 +87,14 @@ export const nativeBridgeClient = {
 					projectData,
 					suggestedName,
 					existingProjectPath,
+					defaultDir,
 				},
 			}),
-		loadProjectFile: () =>
+		loadProjectFile: (defaultDir?: string) =>
 			requireNativeBridgeData<ProjectFileResult>({
 				domain: "project",
 				action: "loadProjectFile",
+				payload: { defaultDir },
 			}),
 		loadCurrentProjectFile: () =>
 			requireNativeBridgeData<ProjectFileResult>({

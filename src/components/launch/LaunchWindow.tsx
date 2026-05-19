@@ -356,8 +356,15 @@ export function LaunchWindow() {
 	};
 
 	const openProjectFile = async () => {
-		const result = await nativeBridgeClient.project.loadProjectFile();
+		const prefs = loadUserPreferences();
+		const result = await nativeBridgeClient.project.loadProjectFile(
+			prefs.lastProjectOpenDirectory ?? undefined,
+		);
 		if (result.canceled || !result.success) return;
+		if (result.path) {
+			const dir = parentDirectoryOf(result.path);
+			if (dir) saveUserPreferences({ lastProjectOpenDirectory: dir });
+		}
 		await window.electronAPI.switchToEditor();
 	};
 

@@ -13,8 +13,9 @@ interface ProjectServiceOptions {
 		projectData: unknown,
 		suggestedName?: string,
 		existingProjectPath?: string,
+		defaultDir?: string,
 	) => Promise<ProjectFileResult>;
-	loadProjectFile: () => Promise<ProjectFileResult>;
+	loadProjectFile: (defaultDir?: string) => Promise<ProjectFileResult>;
 	loadCurrentProjectFile: () => Promise<ProjectFileResult>;
 	setCurrentVideoPath: (path: string) => ProjectPathResult | Promise<ProjectPathResult>;
 	getCurrentVideoPathResult: () => ProjectPathResult;
@@ -38,18 +39,20 @@ export class ProjectService {
 		projectData: unknown,
 		suggestedName?: string,
 		existingProjectPath?: string,
+		defaultDir?: string,
 	) {
 		const result = await this.options.saveProjectFile(
 			projectData,
 			suggestedName,
 			existingProjectPath,
+			defaultDir,
 		);
 		this.getCurrentContext();
 		return result;
 	}
 
-	async loadProjectFile() {
-		const result = await this.options.loadProjectFile();
+	async loadProjectFile(defaultDir?: string) {
+		const result = await this.options.loadProjectFile(defaultDir);
 		this.getCurrentContext();
 		return result;
 	}

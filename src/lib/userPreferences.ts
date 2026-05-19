@@ -33,6 +33,10 @@ export interface UserPreferences {
 	shadowIntensity: number;
 	/** Last directory used for opening video files */
 	lastOpenedDirectory: string | null;
+	/** Last directory used for saving projects */
+	lastProjectSaveDirectory: string | null;
+	/** Last directory used for opening projects */
+	lastProjectOpenDirectory: string | null;
 	/** Vertical panel split percentage */
 	panelHeight: number;
 }
@@ -47,6 +51,8 @@ const DEFAULT_PREFS: UserPreferences = {
 	borderRadius: 12,
 	shadowIntensity: 50,
 	lastOpenedDirectory: null,
+	lastProjectSaveDirectory: null,
+	lastProjectOpenDirectory: null,
 	panelHeight: 63.7,
 };
 
@@ -123,6 +129,14 @@ export function loadUserPreferences(): UserPreferences {
 			typeof raw.lastOpenedDirectory === "string" && raw.lastOpenedDirectory.length > 0
 				? raw.lastOpenedDirectory
 				: DEFAULT_PREFS.lastOpenedDirectory,
+		lastProjectSaveDirectory:
+			typeof raw.lastProjectSaveDirectory === "string" && raw.lastProjectSaveDirectory.length > 0
+				? raw.lastProjectSaveDirectory
+				: DEFAULT_PREFS.lastProjectSaveDirectory,
+		lastProjectOpenDirectory:
+			typeof raw.lastProjectOpenDirectory === "string" && raw.lastProjectOpenDirectory.length > 0
+				? raw.lastProjectOpenDirectory
+				: DEFAULT_PREFS.lastProjectOpenDirectory,
 		panelHeight:
 			typeof raw.panelHeight === "number" &&
 			Number.isFinite(raw.panelHeight) &&
