@@ -1,5 +1,6 @@
 import { execFile } from "child_process";
 import { ipcMain } from "electron";
+import ffmpegStatic from "ffmpeg-static";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { promisify } from "util";
@@ -7,7 +8,7 @@ import { promisify } from "util";
 const execFileAsync = promisify(execFile);
 
 function getFfmpegPath(): string {
-	let ffmpegPath = require("ffmpeg-static") as string;
+	let ffmpegPath = ffmpegStatic as string;
 	if (ffmpegPath.includes("app.asar")) {
 		ffmpegPath = ffmpegPath.replace("app.asar", "app.asar.unpacked");
 	}
