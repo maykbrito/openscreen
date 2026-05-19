@@ -65,11 +65,13 @@ export function ExportDialog({
 	const isCompiling =
 		isExporting && progress && progress.percentage >= 100 && exportFormat === "gif";
 	const isFinalizing = progress?.phase === "finalizing";
+	const isOptimizing = progress?.phase === "optimizing";
 	const renderProgress = progress?.renderProgress;
 
 	// Get status message based on phase
 	const getStatusMessage = () => {
 		if (error) return t("export.tryAgain");
+		if (isOptimizing) return "Optimizing...";
 		if (isCompiling || isFinalizing) {
 			if (exportFormat === "mp4") {
 				return t("export.finalizingVideo");
@@ -85,6 +87,7 @@ export function ExportDialog({
 	// Get title based on phase
 	const getTitle = () => {
 		if (error) return t("export.failed");
+		if (isOptimizing) return "Optimizing";
 		if (isFinalizing && exportFormat === "mp4") return t("export.finalizingVideoTitle");
 		if (isCompiling || isFinalizing) return t("export.compilingGif");
 		return t("export.exportingFormat", { format: formatLabel });
@@ -175,12 +178,19 @@ export function ExportDialog({
 						<div className="space-y-2">
 							<div className="flex justify-between text-xs font-medium text-slate-400 uppercase tracking-wider">
 								<span>
-									{isCompiling || isFinalizing
-										? t("export.compiling")
-										: t("export.renderingFrames")}
+									{isOptimizing
+										? "Optimizing"
+										: isCompiling || isFinalizing
+											? t("export.compiling")
+											: t("export.renderingFrames")}
 								</span>
 								<span className="font-mono text-slate-200">
-									{isCompiling || isFinalizing ? (
+									{isOptimizing ? (
+										<span className="flex items-center gap-2">
+											<Loader2 className="w-3 h-3 animate-spin" />
+											{t("export.processing")}
+										</span>
+									) : isCompiling || isFinalizing ? (
 										renderProgress !== undefined && renderProgress > 0 ? (
 											`${renderProgress}%`
 										) : (
@@ -195,7 +205,7 @@ export function ExportDialog({
 								</span>
 							</div>
 							<div className="h-2 bg-white/5 rounded-full overflow-hidden border border-white/5">
-								{isCompiling || isFinalizing ? (
+								{isOptimizing || isCompiling || isFinalizing ? (
 									// Show render progress if available, otherwise animated indeterminate bar
 									renderProgress !== undefined && renderProgress > 0 ? (
 										<div
@@ -230,14 +240,18 @@ export function ExportDialog({
 						<div className="grid grid-cols-2 gap-4">
 							<div className="bg-white/5 rounded-xl p-3 border border-white/5">
 								<div className="text-[10px] text-slate-500 uppercase tracking-wider mb-1">
-									{isCompiling || isFinalizing ? t("export.status") : t("export.format")}
+									{isOptimizing || isCompiling || isFinalizing
+										? t("export.status")
+										: t("export.format")}
 								</div>
 								<div className="text-slate-200 font-medium text-sm">
-									{isFinalizing && exportFormat === "mp4"
-										? t("export.finalizing")
-										: isCompiling || isFinalizing
-											? t("export.compilingStatus")
-											: formatLabel}
+									{isOptimizing
+										? "Optimizing"
+										: isFinalizing && exportFormat === "mp4"
+											? t("export.finalizing")
+											: isCompiling || isFinalizing
+												? t("export.compilingStatus")
+												: formatLabel}
 								</div>
 							</div>
 							<div className="bg-white/5 rounded-xl p-3 border border-white/5">

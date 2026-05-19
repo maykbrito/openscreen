@@ -25,6 +25,31 @@
 
 ---
 
+## Task 0: Pull latest main into worktree
+
+- [ ] **Step 1: Fetch and merge main**
+
+```bash
+git fetch origin main
+git merge origin/main
+```
+
+- [ ] **Step 2: Reinstall deps if lockfile changed**
+
+```bash
+npm install
+```
+
+- [ ] **Step 3: Verify clean state**
+
+```bash
+git status
+```
+
+Expected: clean working tree, no conflicts.
+
+---
+
 ## Task 1: Install ffmpeg-static dependency
 
 - [ ] **Step 1: Install package**

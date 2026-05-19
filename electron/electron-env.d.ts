@@ -266,6 +266,16 @@ interface Window {
 		nativeVideoExportCancel: (sessionId: string) => Promise<void>;
 		nativeVideoExportMuxAudio: (videoPath: string, audioPath: string) => Promise<string>;
 		setLocale: (locale: string) => Promise<void>;
+		postProcessExport: (options: {
+			filePath: string;
+			compress: boolean;
+			speedUp: boolean;
+		}) => Promise<{
+			success: boolean;
+			message: string;
+			originalSize?: number;
+			finalSize?: number;
+		}>;
 		saveDiagnostic: (payload: {
 			error: string;
 			stack?: string;

@@ -1784,6 +1784,31 @@ export default function VideoEditor() {
 						const saveResult = await window.electronAPI.writeExportToPath(arrayBuffer, targetPath);
 
 						if (saveResult.success && saveResult.path) {
+							if (settings.compressFile || settings.speedUp) {
+								setExportProgress((prev) =>
+									prev
+										? { ...prev, phase: "optimizing" as const }
+										: {
+												currentFrame: 0,
+												totalFrames: 0,
+												percentage: 100,
+												estimatedTimeRemaining: 0,
+												phase: "optimizing" as const,
+											},
+								);
+
+								const postResult = await window.electronAPI.postProcessExport({
+									filePath: targetPath,
+									compress: settings.compressFile ?? false,
+									speedUp: settings.speedUp ?? false,
+								});
+
+								if (!postResult.success) {
+									console.error("Post-processing failed:", postResult.message);
+									// Don't fail the export - file is already saved
+								}
+							}
+
 							setUnsavedExport(null);
 							handleExportSaved("Video", saveResult.path);
 						} else {
