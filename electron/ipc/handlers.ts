@@ -40,6 +40,7 @@ import { RECORDINGS_DIR } from "../main";
 import { createCursorRecordingSession } from "../native-bridge/cursor/recording/factory";
 import { requestMacCursorAccessibilityAccess } from "../native-bridge/cursor/recording/macNativeCursorRecordingSession";
 import type { CursorRecordingSession } from "../native-bridge/cursor/recording/session";
+import { registerFfmpegPostProcessHandler } from "./ffmpegPostProcess";
 import { registerNativeBridgeHandlers } from "./nativeBridge";
 import {
 	cancelNativeExport,
@@ -2744,4 +2745,6 @@ export function registerIpcHandlers(
 		loadCursorRecordingData: readCursorRecordingFile,
 		loadCursorTelemetry: readCursorTelemetryFile,
 	});
+
+	registerFfmpegPostProcessHandler();
 }
