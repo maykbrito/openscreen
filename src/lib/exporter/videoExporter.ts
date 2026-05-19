@@ -160,7 +160,12 @@ export class VideoExporter {
 
 	private async isBreezeAvailable(): Promise<boolean> {
 		if (this.breezeAvailable !== null) return this.breezeAvailable;
-		this.breezeAvailable = !!window.electronAPI?.nativeVideoExportStart;
+		// Breeze IPC adds per-frame serialization overhead that kills throughput.
+		// WebCodecs + mediabunny path is faster (243 FPS proven). Opt-in only.
+		const breezeOptIn =
+			typeof localStorage !== "undefined" &&
+			localStorage.getItem("openscreen.useBreeze") === "true";
+		this.breezeAvailable = breezeOptIn && !!window.electronAPI?.nativeVideoExportStart;
 		return this.breezeAvailable;
 	}
 
@@ -310,6 +315,9 @@ export class VideoExporter {
 			await this.initializeEncoder(encoderPreference);
 
 			if (this.isLightning) {
+				console.log(
+					`[VideoExporter] Lightning active! Renderer: ${renderer.getRendererType()}, Breeze: ${!!this.breezeSessionId}, preferWebGPU: ${preferWebGPU}`,
+				);
 				if (this.breezeSessionId) {
 					this.currentPipelinePath = `${renderer.getRendererType() === "webgpu" ? "WebGPU" : "WebGL"} + Breeze (avc1.640034/prefer-hardware)`;
 				} else {
