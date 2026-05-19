@@ -54,6 +54,7 @@ import { AnnotationSettingsPanel } from "./AnnotationSettingsPanel";
 import { BlurSettingsPanel } from "./BlurSettingsPanel";
 import { CropControl } from "./CropControl";
 import { KeyboardShortcutsHelp } from "./KeyboardShortcutsHelp";
+import { PipelineSelector } from "./PipelineSelector";
 import type {
 	AnnotationRegion,
 	AnnotationType,
@@ -319,6 +320,10 @@ interface SettingsPanelProps {
 	onCursorClipToBoundsChange?: (clip: boolean) => void;
 	hasCursorData?: boolean;
 	showCursorSettings?: boolean;
+	exportPipeline?: import("@/lib/exporter").ExportPipeline;
+	onExportPipelineChange?: (pipeline: import("@/lib/exporter").ExportPipeline) => void;
+	lightningSupported?: boolean;
+	lightningSupportReason?: string;
 }
 
 export default SettingsPanel;
@@ -443,6 +448,10 @@ export function SettingsPanel({
 	onCursorClipToBoundsChange,
 	hasCursorData = false,
 	showCursorSettings = true,
+	exportPipeline = "legacy",
+	onExportPipelineChange,
+	lightningSupported = false,
+	lightningSupportReason,
 }: SettingsPanelProps) {
 	const t = useScopedT("settings");
 	const [activePanelMode, setActivePanelMode] = useState<SettingsPanelMode>("background");
@@ -1895,6 +1904,14 @@ export function SettingsPanel({
 										)}
 									</button>
 								</div>
+								{onExportPipelineChange && (
+									<PipelineSelector
+										value={exportPipeline}
+										onChange={onExportPipelineChange}
+										lightningSupported={lightningSupported}
+										lightningSupportReason={lightningSupportReason}
+									/>
+								)}
 							</div>
 						)}
 

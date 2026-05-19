@@ -21,7 +21,9 @@ import {
 	calculateEffectiveSourceDimensions,
 	calculateMp4ExportSettings,
 	calculateOutputDimensions,
+	detectLightningSupport,
 	type ExportFormat,
+	type ExportPipeline,
 	type ExportProgress,
 	type ExportQuality,
 	type ExportSettings,
@@ -29,6 +31,7 @@ import {
 	GifExporter,
 	type GifFrameRate,
 	type GifSizePreset,
+	type LightningSupport,
 	VideoExporter,
 } from "@/lib/exporter";
 import { computeFrameStepTime } from "@/lib/frameStep";
@@ -205,6 +208,8 @@ export default function VideoEditor() {
 	const [showNewRecordingDialog, setShowNewRecordingDialog] = useState(false);
 	const [exportQuality, setExportQuality] = useState<ExportQuality>("good");
 	const [exportFormat, setExportFormat] = useState<ExportFormat>("mp4");
+	const [exportPipeline, setExportPipeline] = useState<ExportPipeline>("legacy");
+	const [lightningSupport, setLightningSupport] = useState<LightningSupport>({ supported: false });
 	const [gifFrameRate, setGifFrameRate] = useState<GifFrameRate>(15);
 	const [gifLoop, setGifLoop] = useState(true);
 	const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>("medium");
@@ -272,6 +277,15 @@ export default function VideoEditor() {
 	const nextAnnotationIdRef = useRef(1);
 	const nextAnnotationZIndexRef = useRef(1);
 	const exporterRef = useRef<VideoExporter | null>(null);
+
+	useEffect(() => {
+		detectLightningSupport().then((support) => {
+			setLightningSupport(support);
+			if (support.supported) {
+				setExportPipeline("lightning");
+			}
+		});
+	}, []);
 
 	const annotationOnlyRegions = useMemo(
 		() => annotationRegions.filter((region) => region.type !== "blur"),
@@ -1705,6 +1719,7 @@ export default function VideoEditor() {
 						frameRate: 60,
 						bitrate,
 						codec: "avc1.640033",
+						pipeline: exportPipeline,
 						wallpaper,
 						zoomRegions,
 						trimRegions,
@@ -1763,18 +1778,97 @@ export default function VideoEditor() {
 							toast.error(message);
 						}
 					} else {
-						const message = buildExportDiagnosticMessage({
-							formatLabel: "Video",
-							reason: result.error || "Export failed",
-							sourcePath: videoSourcePath ?? videoPath,
-							width: exportWidth,
-							height: exportHeight,
-							frameRate: 60,
-							codec: "avc1.640033",
-							bitrate,
-						});
-						setExportError(message);
-						toast.error(message);
+						// Auto-fallback: if Lightning failed, retry with legacy
+						if (exportPipeline === "lightning") {
+							toast.warning("Lightning export failed, retrying with legacy pipeline...");
+							setExportPipeline("legacy");
+							const fallbackExporter = new VideoExporter({
+								videoUrl: videoPath,
+								webcamVideoUrl: webcamVideoPath || undefined,
+								width: exportWidth,
+								height: exportHeight,
+								frameRate: 60,
+								bitrate,
+								codec: "avc1.640033",
+								pipeline: "legacy",
+								wallpaper,
+								zoomRegions,
+								trimRegions,
+								speedRegions,
+								showShadow: shadowIntensity > 0,
+								shadowIntensity,
+								showBlur,
+								motionBlurAmount,
+								borderRadius,
+								padding,
+								cropRegion,
+								cursorRecordingData,
+								cursorScale: effectiveShowCursor ? cursorSize : 0,
+								cursorSmoothing,
+								cursorMotionBlur,
+								cursorClickBounce,
+								cursorClipToBounds,
+								annotationRegions,
+								webcamLayoutPreset,
+								webcamMaskShape,
+								webcamSizePreset,
+								webcamPosition,
+								previewWidth,
+								previewHeight,
+								cursorTelemetry,
+								cursorClickTimestamps,
+								onProgress: (progress: ExportProgress) => {
+									setExportProgress(progress);
+								},
+							});
+							exporterRef.current = fallbackExporter;
+							const fallbackResult = await fallbackExporter.export();
+							if (fallbackResult.success && fallbackResult.blob) {
+								const arrayBuffer = await fallbackResult.blob.arrayBuffer();
+								const saveResult = await window.electronAPI.writeExportToPath(
+									arrayBuffer,
+									targetPath,
+								);
+								if (saveResult.success && saveResult.path) {
+									setUnsavedExport(null);
+									handleExportSaved("Video", saveResult.path);
+								} else {
+									setUnsavedExport({ arrayBuffer, fileName: targetFileName, format: "mp4" });
+									const message = buildSaveDiagnosticMessage(
+										"Video",
+										saveResult.message || "Failed to save video",
+									);
+									setExportError(message);
+									toast.error(message);
+								}
+							} else {
+								const message = buildExportDiagnosticMessage({
+									formatLabel: "Video",
+									reason: fallbackResult.error || "Export failed",
+									sourcePath: videoSourcePath ?? videoPath,
+									width: exportWidth,
+									height: exportHeight,
+									frameRate: 60,
+									codec: "avc1.640033",
+									bitrate,
+								});
+								setExportError(message);
+								toast.error(message);
+							}
+						} else {
+							const message = buildExportDiagnosticMessage({
+								formatLabel: "Video",
+								reason: result.error || "Export failed",
+								sourcePath: videoSourcePath ?? videoPath,
+								width: exportWidth,
+								height: exportHeight,
+								frameRate: 60,
+								codec: "avc1.640033",
+								bitrate,
+							});
+							setExportError(message);
+							toast.error(message);
+						}
 					}
 				}
 
@@ -1829,6 +1923,7 @@ export default function VideoEditor() {
 			webcamSizePreset,
 			webcamPosition,
 			exportQuality,
+			exportPipeline,
 			handleExportSaved,
 			cursorTelemetry,
 			cursorClickTimestamps,
@@ -2243,6 +2338,10 @@ export default function VideoEditor() {
 									onExportQualityChange={setExportQuality}
 									exportFormat={exportFormat}
 									onExportFormatChange={setExportFormat}
+									exportPipeline={exportPipeline}
+									onExportPipelineChange={setExportPipeline}
+									lightningSupported={lightningSupport.supported}
+									lightningSupportReason={lightningSupport.reason}
 									gifFrameRate={gifFrameRate}
 									onGifFrameRateChange={setGifFrameRate}
 									gifLoop={gifLoop}
@@ -2384,6 +2483,7 @@ export default function VideoEditor() {
 				error={exportError}
 				onCancel={handleCancelExport}
 				exportFormat={exportFormat}
+				exportPipeline={exportPipeline}
 				exportedFilePath={exportedFilePath || undefined}
 				onShowInFolder={
 					exportedFilePath ? () => void handleShowExportedFile(exportedFilePath) : undefined

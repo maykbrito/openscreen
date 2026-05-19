@@ -4,6 +4,7 @@ export interface ExportConfig {
 	frameRate: number;
 	bitrate: number;
 	codec?: string;
+	pipeline?: ExportPipeline;
 }
 
 export interface ExportProgress {
@@ -13,6 +14,8 @@ export interface ExportProgress {
 	estimatedTimeRemaining: number; // in seconds
 	phase?: "extracting" | "finalizing"; // Phase of export
 	renderProgress?: number; // 0-100, progress of GIF rendering phase
+	renderFps?: number;
+	pipelinePath?: string;
 }
 
 export interface ExportResult {
@@ -29,6 +32,8 @@ export interface VideoFrameData {
 }
 
 export type ExportQuality = "medium" | "good" | "source";
+
+export type ExportPipeline = "legacy" | "lightning";
 
 // GIF Export Types
 export type ExportFormat = "mp4" | "gif";
@@ -49,6 +54,7 @@ export interface ExportSettings {
 	format: ExportFormat;
 	// MP4 settings
 	quality?: ExportQuality;
+	pipeline?: ExportPipeline;
 	// GIF settings
 	gifConfig?: GifExportConfig;
 }

@@ -107,6 +107,7 @@ interface FrameRenderConfig {
 	cursorTelemetry?: import("@/components/video-editor/types").CursorTelemetryPoint[];
 	cursorClickTimestamps?: number[];
 	platform: string;
+	preferWebGPU?: boolean;
 }
 
 interface AnimationState {
@@ -196,7 +197,7 @@ export class FrameRenderer {
 
 		// Initialize PixiJS with optimized settings for export performance
 		this.app = new Application();
-		await this.app.init({
+		const initOptions: Parameters<Application["init"]>[0] = {
 			canvas,
 			width: this.config.width,
 			height: this.config.height,
@@ -204,7 +205,13 @@ export class FrameRenderer {
 			antialias: true,
 			resolution: 1,
 			autoDensity: true,
-		});
+			powerPreference: "high-performance",
+		};
+		// Lightning: prefer WebGPU renderer for max throughput.
+		if (this.config.preferWebGPU && typeof navigator !== "undefined" && "gpu" in navigator) {
+			(initOptions as { preference?: string }).preference = "webgpu";
+		}
+		await this.app.init(initOptions);
 
 		// Setup containers
 		this.cameraContainer = new Container();
@@ -439,6 +446,11 @@ export class FrameRenderer {
 
 		// Render the PixiJS stage to its canvas (video only, transparent background)
 		this.app.renderer.render(this.app.stage);
+
+		// WebGPU renderer is asynchronous: render() submits the command buffer and
+		// returns immediately. If we read app.canvas before the GPU finishes, we get
+		// the previous frame's pixels — causing duplicated/skipped frames in export.
+		await this.waitForGPUFrame();
 
 		// Skip baking the shadow when the WebGL rotation pass will run — it'd alias to
 		// a hard edge through bilinear sampling. We re-apply shadow fresh after rotation.
@@ -1121,6 +1133,41 @@ export class FrameRenderer {
 				webcamRect.height,
 			);
 			fgCtx.restore();
+		}
+	}
+
+	getRendererType(): "webgpu" | "webgl" | "unknown" {
+		const name = (this.app?.renderer as { name?: string })?.name;
+		if (typeof name === "string") {
+			if (/webgpu/i.test(name)) return "webgpu";
+			if (/webgl/i.test(name)) return "webgl";
+		}
+		const type = (this.app?.renderer as { type?: unknown })?.type;
+		if (typeof type === "string") {
+			if (/webgpu/i.test(type)) return "webgpu";
+			if (/webgl/i.test(type)) return "webgl";
+		}
+		if (typeof type === "number") {
+			if (type === 2) return "webgpu";
+			if (type === 1) return "webgl";
+		}
+		return "unknown";
+	}
+
+	private async waitForGPUFrame(): Promise<void> {
+		if (!this.app) return;
+		if (this.getRendererType() !== "webgpu") return;
+		const renderer = this.app.renderer as unknown as {
+			gpu?: { device?: GPUDevice };
+			device?: GPUDevice;
+		};
+		const device = renderer.gpu?.device ?? renderer.device;
+		if (device?.queue?.onSubmittedWorkDone) {
+			try {
+				await device.queue.onSubmittedWorkDone();
+			} catch {
+				// Best-effort sync
+			}
 		}
 	}
 

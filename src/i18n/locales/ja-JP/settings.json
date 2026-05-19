@@ -102,7 +102,11 @@
 	"export": {
 		"videoButton": "動画をエクスポート",
 		"gifButton": "GIF をエクスポート",
-		"chooseSaveLocation": "保存場所を選択"
+		"chooseSaveLocation": "保存場所を選択",
+		"pipeline": "パイプライン",
+		"pipelineLegacy": "レガシー",
+		"pipelineLightning": "Lightning (ベータ)",
+		"pipelineLightningDescription": "Lightning (ベータ) は最も高速な互換バックエンドを自動的に使用し、必要に応じてフォールバックします。"
 	},
 	"links": {
 		"reportBug": "バグを報告",

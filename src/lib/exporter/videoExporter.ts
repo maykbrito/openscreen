@@ -13,6 +13,7 @@ import { getPlatform } from "@/utils/platformUtils";
 import { AsyncVideoFrameQueue } from "./asyncVideoFrameQueue";
 import { AudioProcessor } from "./audioEncoder";
 import { FrameRenderer } from "./frameRenderer";
+import { buildPipelinePath } from "./lightningSupport";
 import { VideoMuxer } from "./muxer";
 import { StreamingVideoDecoder } from "./streamingDecoder";
 import type { ExportConfig, ExportProgress, ExportResult } from "./types";
@@ -152,6 +153,18 @@ export class VideoExporter {
 	private lastEncoderOutputAt = 0;
 	private fatalEncoderError: Error | null = null;
 
+	// Lightning telemetry
+	private readonly MAX_ENCODE_QUEUE_LIGHTNING = 240;
+	private renderStartMs = 0;
+	private framesRenderedSinceStart = 0;
+	private lastFpsSampleMs = 0;
+	private lastFpsSampleFrames = 0;
+	private currentRenderFps = 0;
+	private currentPipelinePath = "";
+	private get isLightning(): boolean {
+		return this.config.pipeline === "lightning";
+	}
+
 	constructor(config: VideoExporterConfig) {
 		this.config = config;
 	}
@@ -257,11 +270,24 @@ export class VideoExporter {
 				cursorTelemetry: this.config.cursorTelemetry,
 				cursorClickTimestamps: this.config.cursorClickTimestamps,
 				platform,
+				preferWebGPU: this.isLightning,
 			});
 			this.renderer = renderer;
 			await renderer.initialize();
 
 			await this.initializeEncoder(encoderPreference);
+
+			if (this.isLightning) {
+				this.currentPipelinePath = buildPipelinePath({
+					rendererType: renderer.getRendererType(),
+					codec: this.config.codec || "avc1.640033",
+					hardwareAcceleration: encoderPreference,
+					latencyMode: "quality",
+				});
+				console.log(`[VideoExporter] Lightning path: ${this.currentPipelinePath}`);
+			} else {
+				this.currentPipelinePath = "";
+			}
 
 			const sourceDemuxer = streamingDecoder.getDemuxer();
 			const audioExportCodec =
@@ -285,10 +311,9 @@ export class VideoExporter {
 
 			const frameDuration = 1_000_000 / this.config.frameRate;
 			let frameIndex = 0;
+			const baseQueue = this.isLightning ? this.MAX_ENCODE_QUEUE_LIGHTNING : this.MAX_ENCODE_QUEUE;
 			const maxEncodeQueue =
-				encoderPreference === "prefer-software"
-					? Math.min(this.MAX_ENCODE_QUEUE, 32)
-					: this.MAX_ENCODE_QUEUE;
+				encoderPreference === "prefer-software" ? Math.min(this.MAX_ENCODE_QUEUE, 32) : baseQueue;
 
 			webcamFrameQueue = this.config.webcamVideoUrl ? new AsyncVideoFrameQueue() : null;
 			webcamDecodePromise =
@@ -325,6 +350,12 @@ export class VideoExporter {
 								});
 						})()
 					: null;
+
+			this.renderStartMs = Date.now();
+			this.framesRenderedSinceStart = 0;
+			this.lastFpsSampleMs = this.renderStartMs;
+			this.lastFpsSampleFrames = 0;
+			this.currentRenderFps = 0;
 
 			await streamingDecoder.decodeAll(
 				this.config.frameRate,
@@ -404,11 +435,33 @@ export class VideoExporter {
 						exportFrame.close();
 						frameIndex++;
 
+						this.framesRenderedSinceStart++;
+
+						// Sample render FPS roughly every 15 frames or 250ms (Lightning only).
+						if (this.isLightning) {
+							const now = Date.now();
+							const framesSinceSample = this.framesRenderedSinceStart - this.lastFpsSampleFrames;
+							const elapsedMs = now - this.lastFpsSampleMs;
+							if (framesSinceSample >= 15 || elapsedMs >= 250) {
+								if (elapsedMs > 0) {
+									const instantaneous = (framesSinceSample * 1000) / elapsedMs;
+									this.currentRenderFps =
+										this.currentRenderFps === 0
+											? instantaneous
+											: this.currentRenderFps * 0.6 + instantaneous * 0.4;
+								}
+								this.lastFpsSampleMs = now;
+								this.lastFpsSampleFrames = this.framesRenderedSinceStart;
+							}
+						}
+
 						this.reportProgress({
 							currentFrame: frameIndex,
 							totalFrames,
 							percentage: (frameIndex / totalFrames) * 100,
 							estimatedTimeRemaining: 0,
+							renderFps: this.isLightning ? this.currentRenderFps : undefined,
+							pipelinePath: this.isLightning ? this.currentPipelinePath : undefined,
 						});
 					} finally {
 						videoFrame.close();
@@ -645,6 +698,9 @@ export class VideoExporter {
 	}
 
 	private getEncoderPreferences(): HardwareAcceleration[] {
+		if (this.isLightning) {
+			return ["prefer-hardware"];
+		}
 		if (typeof navigator !== "undefined" && /\bWindows\b/i.test(navigator.userAgent)) {
 			return ["prefer-software", "prefer-hardware"];
 		}

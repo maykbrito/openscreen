@@ -102,7 +102,11 @@
 	"export": {
 		"videoButton": "تصدير الفيديو",
 		"gifButton": "تصدير GIF",
-		"chooseSaveLocation": "اختيار موقع الحفظ"
+		"chooseSaveLocation": "اختيار موقع الحفظ",
+		"pipeline": "خط الأنابيب",
+		"pipelineLegacy": "تقليدي",
+		"pipelineLightning": "Lightning (تجريبي)",
+		"pipelineLightningDescription": "يستخدم Lightning (تجريبي) تلقائيًا أسرع واجهة خلفية متوافقة ويعود إلى الخيار البديل عند الحاجة."
 	},
 	"links": {
 		"reportBug": "الإبلاغ عن خطأ",

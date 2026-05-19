@@ -102,7 +102,11 @@
 	"export": {
 		"videoButton": "Экспорт видео",
 		"gifButton": "Экспорт GIF",
-		"chooseSaveLocation": "Выбрать место сохранения"
+		"chooseSaveLocation": "Выбрать место сохранения",
+		"pipeline": "Pipeline",
+		"pipelineLegacy": "Legacy",
+		"pipelineLightning": "Lightning (Beta)",
+		"pipelineLightningDescription": "Lightning (Beta) автоматически использует самый быстрый совместимый бэкенд и переключается при необходимости."
 	},
 	"links": {
 		"reportBug": "Сообщить об ошибке",

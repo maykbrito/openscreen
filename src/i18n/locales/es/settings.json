@@ -102,7 +102,11 @@
 	"export": {
 		"videoButton": "Exportar video",
 		"gifButton": "Exportar GIF",
-		"chooseSaveLocation": "Elegir ubicación de guardado"
+		"chooseSaveLocation": "Elegir ubicación de guardado",
+		"pipeline": "Pipeline",
+		"pipelineLegacy": "Legado",
+		"pipelineLightning": "Lightning (Beta)",
+		"pipelineLightningDescription": "Lightning (Beta) usa automáticamente el backend compatible más rápido y recurre a uno alternativo cuando es necesario."
 	},
 	"links": {
 		"reportBug": "Reportar error",

@@ -1,8 +1,8 @@
-import { Download, Loader2, X } from "lucide-react";
+import { Download, Loader2, X, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useScopedT } from "@/contexts/I18nContext";
-import type { ExportProgress } from "@/lib/exporter";
+import type { ExportPipeline, ExportProgress } from "@/lib/exporter";
 
 interface ExportDialogProps {
 	isOpen: boolean;
@@ -12,6 +12,7 @@ interface ExportDialogProps {
 	error: string | null;
 	onCancel?: () => void;
 	exportFormat?: "mp4" | "gif";
+	exportPipeline?: ExportPipeline;
 	exportedFilePath?: string;
 	onShowInFolder?: () => void;
 }
@@ -24,6 +25,7 @@ export function ExportDialog({
 	error,
 	onCancel,
 	exportFormat = "mp4",
+	exportPipeline,
 	exportedFilePath,
 	onShowInFolder,
 }: ExportDialogProps) {
@@ -247,6 +249,25 @@ export function ExportDialog({
 								</div>
 							</div>
 						</div>
+
+						{exportPipeline === "lightning" && (
+							<div className="space-y-2">
+								<div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 flex items-center gap-2">
+									<Zap className="w-4 h-4 text-amber-400 shrink-0" />
+									<span className="text-xs text-amber-300">
+										PLEASE report bugs with Lightning export
+									</span>
+								</div>
+								{progress.renderFps !== undefined && progress.renderFps > 0 && (
+									<div className="flex items-center gap-2 text-xs text-slate-400">
+										<span>Render speed: {progress.renderFps.toFixed(1)} FPS</span>
+									</div>
+								)}
+								{progress.pipelinePath && (
+									<div className="text-[10px] text-slate-500 truncate">{progress.pipelinePath}</div>
+								)}
+							</div>
+						)}
 
 						{onCancel && (
 							<div className="pt-2">

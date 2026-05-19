@@ -102,7 +102,11 @@
 	"export": {
 		"videoButton": "비디오 내보내기",
 		"gifButton": "GIF 내보내기",
-		"chooseSaveLocation": "저장 위치 선택"
+		"chooseSaveLocation": "저장 위치 선택",
+		"pipeline": "파이프라인",
+		"pipelineLegacy": "레거시",
+		"pipelineLightning": "Lightning (베타)",
+		"pipelineLightningDescription": "Lightning (베타)는 가장 빠른 호환 백엔드를 자동으로 사용하며 필요할 때 대체됩니다."
 	},
 	"links": {
 		"reportBug": "버그 신고",

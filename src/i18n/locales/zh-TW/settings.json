@@ -103,7 +103,11 @@
 	"export": {
 		"videoButton": "匯出影片",
 		"gifButton": "匯出 GIF",
-		"chooseSaveLocation": "選擇儲存位置"
+		"chooseSaveLocation": "選擇儲存位置",
+		"pipeline": "管線",
+		"pipelineLegacy": "傳統",
+		"pipelineLightning": "閃電 (測試版)",
+		"pipelineLightningDescription": "閃電 (測試版) 自動使用最快的相容後端，並在需要時回退。"
 	},
 	"links": {
 		"reportBug": "回報錯誤",

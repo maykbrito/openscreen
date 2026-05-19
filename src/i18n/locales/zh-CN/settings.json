@@ -102,7 +102,11 @@
 	"export": {
 		"videoButton": "导出视频",
 		"gifButton": "导出 GIF",
-		"chooseSaveLocation": "选择保存位置"
+		"chooseSaveLocation": "选择保存位置",
+		"pipeline": "管线",
+		"pipelineLegacy": "传统",
+		"pipelineLightning": "闪电 (测试版)",
+		"pipelineLightningDescription": "闪电 (测试版) 自动使用最快的兼容后端，并在需要时回退。"
 	},
 	"links": {
 		"reportBug": "报告错误",

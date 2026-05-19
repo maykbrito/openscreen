@@ -102,7 +102,11 @@
 	"export": {
 		"videoButton": "Xuất Video",
 		"gifButton": "Xuất GIF",
-		"chooseSaveLocation": "Chọn vị trí lưu"
+		"chooseSaveLocation": "Chọn vị trí lưu",
+		"pipeline": "Pipeline",
+		"pipelineLegacy": "Legacy",
+		"pipelineLightning": "Lightning (Beta)",
+		"pipelineLightningDescription": "Lightning (Beta) tự động sử dụng backend tương thích nhanh nhất và chuyển sang phương án dự phòng khi cần."
 	},
 	"links": {
 		"reportBug": "Báo cáo lỗi",

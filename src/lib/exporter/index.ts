@@ -1,5 +1,7 @@
 export { FrameRenderer } from "./frameRenderer";
 export { calculateOutputDimensions, GifExporter } from "./gifExporter";
+export type { LightningSupport } from "./lightningSupport";
+export { buildPipelinePath, detectLightningSupport } from "./lightningSupport";
 export {
 	calculateEffectiveSourceDimensions,
 	calculateMp4ExportSettings,
@@ -10,6 +12,7 @@ export { StreamingVideoDecoder } from "./streamingDecoder";
 export type {
 	ExportConfig,
 	ExportFormat,
+	ExportPipeline,
 	ExportProgress,
 	ExportQuality,
 	ExportResult,
