@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { accessSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -24,7 +24,9 @@ function getFFmpegPath(): string {
 		try {
 			accessSync(p);
 			return p;
-		} catch {}
+		} catch {
+			// Not found at this path, try next
+		}
 	}
 	throw new Error("FFmpeg not found. Install ffmpeg or ffmpeg-static.");
 }
@@ -59,9 +61,8 @@ export function startNativeExport(config: {
 
 	const proc = spawn(ffmpegPath, args, { stdio: ["pipe", "ignore", "pipe"] });
 
-	let stderrOutput = "";
-	proc.stderr?.on("data", (chunk: Buffer) => {
-		stderrOutput += chunk.toString();
+	proc.stderr?.on("data", () => {
+		// Drain stderr to prevent backpressure
 	});
 
 	sessions.set(id, { id, process: proc, outputPath, writeQueue: Promise.resolve() });

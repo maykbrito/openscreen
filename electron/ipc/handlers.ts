@@ -2701,13 +2701,19 @@ export function registerIpcHandlers(
 		},
 	);
 
-	ipcMain.handle("native-video-export-start", (_, config: { width: number; height: number; frameRate: number }) => {
-		return startNativeExport(config);
-	});
+	ipcMain.handle(
+		"native-video-export-start",
+		(_, config: { width: number; height: number; frameRate: number }) => {
+			return startNativeExport(config);
+		},
+	);
 
-	ipcMain.handle("native-video-export-write-frame", async (_, sessionId: string, frameData: Uint8Array) => {
-		await writeNativeFrame(sessionId, frameData);
-	});
+	ipcMain.handle(
+		"native-video-export-write-frame",
+		async (_, sessionId: string, frameData: Uint8Array) => {
+			await writeNativeFrame(sessionId, frameData);
+		},
+	);
 
 	ipcMain.handle("native-video-export-finish", async (_, sessionId: string) => {
 		return finishNativeExport(sessionId);
