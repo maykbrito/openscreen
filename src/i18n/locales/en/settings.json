@@ -102,11 +102,28 @@
 	"export": {
 		"videoButton": "Export Video",
 		"gifButton": "Export GIF",
+		"frameButton": "Export Frame",
 		"chooseSaveLocation": "Choose Save Location",
 		"pipeline": "Pipeline",
 		"pipelineLegacy": "Legacy",
 		"pipelineLightning": "Lightning (Beta)",
-		"pipelineLightningDescription": "Lightning (Beta) automatically uses the fastest compatible backend and falls back when needed."
+		"pipelineLightningDescription": "Lightning (Beta) automatically uses the fastest compatible backend and falls back when needed.",
+		"format": {
+			"frame": "Frame"
+		},
+		"frame": {
+			"format": "Format",
+			"format.png": "PNG",
+			"format.jpeg": "JPG",
+			"quality": "Quality",
+			"quality.low": "Low",
+			"quality.medium": "Medium",
+			"quality.high": "High",
+			"size": "Size",
+			"includeOverlays": "Include overlays",
+			"removeBackground": "Remove background",
+			"removeBackground.hint": "Exports PNG with transparent background"
+		}
 	},
 	"links": {
 		"reportBug": "Report Bug",
