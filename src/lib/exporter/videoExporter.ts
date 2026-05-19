@@ -270,7 +270,7 @@ export class VideoExporter {
 				cursorTelemetry: this.config.cursorTelemetry,
 				cursorClickTimestamps: this.config.cursorClickTimestamps,
 				platform,
-				preferWebGPU: this.isLightning,
+				preferWebGPU: false,
 			});
 			this.renderer = renderer;
 			await renderer.initialize();

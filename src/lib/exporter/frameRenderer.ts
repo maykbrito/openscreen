@@ -207,10 +207,11 @@ export class FrameRenderer {
 			autoDensity: true,
 			powerPreference: "high-performance",
 		};
-		// Lightning: prefer WebGPU renderer for max throughput.
-		if (this.config.preferWebGPU && typeof navigator !== "undefined" && "gpu" in navigator) {
-			(initOptions as { preference?: string }).preference = "webgpu";
-		}
+		// NOTE: We intentionally do NOT enable WebGPU here even for Lightning.
+		// WebGPU's renderer.render() is asynchronous, requiring expensive GPU sync
+		// (device.queue.onSubmittedWorkDone) before reading pixels — this kills
+		// throughput. WebGL is synchronous and fast enough; the real Lightning speed
+		// gain comes from the hardware VideoEncoder, not the renderer backend.
 		await this.app.init(initOptions);
 
 		// Setup containers
@@ -446,11 +447,6 @@ export class FrameRenderer {
 
 		// Render the PixiJS stage to its canvas (video only, transparent background)
 		this.app.renderer.render(this.app.stage);
-
-		// WebGPU renderer is asynchronous: render() submits the command buffer and
-		// returns immediately. If we read app.canvas before the GPU finishes, we get
-		// the previous frame's pixels — causing duplicated/skipped frames in export.
-		await this.waitForGPUFrame();
 
 		// Skip baking the shadow when the WebGL rotation pass will run — it'd alias to
 		// a hard edge through bilinear sampling. We re-apply shadow fresh after rotation.
@@ -1152,23 +1148,6 @@ export class FrameRenderer {
 			if (type === 1) return "webgl";
 		}
 		return "unknown";
-	}
-
-	private async waitForGPUFrame(): Promise<void> {
-		if (!this.app) return;
-		if (this.getRendererType() !== "webgpu") return;
-		const renderer = this.app.renderer as unknown as {
-			gpu?: { device?: GPUDevice };
-			device?: GPUDevice;
-		};
-		const device = renderer.gpu?.device ?? renderer.device;
-		if (device?.queue?.onSubmittedWorkDone) {
-			try {
-				await device.queue.onSubmittedWorkDone();
-			} catch {
-				// Best-effort sync
-			}
-		}
 	}
 
 	getCanvas(): HTMLCanvasElement {

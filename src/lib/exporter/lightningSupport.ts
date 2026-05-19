@@ -4,27 +4,14 @@ export interface LightningSupport {
 }
 
 /**
- * Probes WebGPU availability and hardware video encoder support.
- * Disabled on Linux where Electron WebGPU is still flaky.
+ * Probes hardware video encoder support for Lightning pipeline.
+ * Lightning uses WebGL rendering (synchronous) + hardware VideoEncoder.
+ * Disabled on Linux where hardware encoding is unreliable.
  */
 export async function detectLightningSupport(): Promise<LightningSupport> {
 	// Disabled on Linux
 	if (typeof navigator !== "undefined" && /linux/i.test(navigator.userAgent)) {
 		return { supported: false, reason: "Lightning is not yet supported on Linux." };
-	}
-
-	// Check WebGPU
-	if (typeof navigator === "undefined" || !("gpu" in navigator)) {
-		return { supported: false, reason: "WebGPU is not available in this browser." };
-	}
-
-	try {
-		const adapter = await (navigator as unknown as { gpu: GPU }).gpu.requestAdapter();
-		if (!adapter) {
-			return { supported: false, reason: "No WebGPU adapter found." };
-		}
-	} catch {
-		return { supported: false, reason: "WebGPU adapter request failed." };
 	}
 
 	// Check hardware video encoder
