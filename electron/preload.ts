@@ -259,4 +259,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		ipcRenderer.invoke("native-video-export-cancel", sessionId),
 	nativeVideoExportMuxAudio: (videoPath: string, audioPath: string) =>
 		ipcRenderer.invoke("native-video-export-mux-audio", videoPath, audioPath),
+	postProcessExport: (options: { filePath: string; compress: boolean; speedUp: boolean }) => {
+		return ipcRenderer.invoke("post-process-export", options);
+	},
 });

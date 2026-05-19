@@ -12,7 +12,7 @@ export interface ExportProgress {
 	totalFrames: number;
 	percentage: number;
 	estimatedTimeRemaining: number; // in seconds
-	phase?: "extracting" | "finalizing"; // Phase of export
+	phase?: "extracting" | "finalizing" | "optimizing"; // Phase of export
 	renderProgress?: number; // 0-100, progress of GIF rendering phase
 	renderFps?: number;
 	pipelinePath?: string;
@@ -87,6 +87,9 @@ export interface ExportSettings {
 	gifConfig?: GifExportConfig;
 	// Frame settings
 	frameConfig?: FrameExportConfig;
+	// Post-processing options (MP4 only)
+	compressFile?: boolean; // Re-encode with CRF 23 for ~85-90% size reduction
+	speedUp?: boolean; // Accelerate video by 1.15x
 }
 
 export const GIF_SIZE_PRESETS: Record<GifSizePreset, { maxHeight: number; label: string }> = {

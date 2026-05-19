@@ -217,6 +217,8 @@ export default function VideoEditor() {
 		hasWebGPU: false,
 		hasWebCodecs: false,
 	});
+	const [compressFile, setCompressFile] = useState(false);
+	const [speedUp, setSpeedUp] = useState(false);
 	const [gifFrameRate, setGifFrameRate] = useState<GifFrameRate>(15);
 	const [gifLoop, setGifLoop] = useState(true);
 	const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>("medium");
@@ -1782,6 +1784,38 @@ export default function VideoEditor() {
 						const saveResult = await window.electronAPI.writeExportToPath(arrayBuffer, targetPath);
 
 						if (saveResult.success && saveResult.path) {
+							if (settings.compressFile || settings.speedUp) {
+								setExportProgress((prev) =>
+									prev
+										? { ...prev, phase: "optimizing" as const }
+										: {
+												currentFrame: 0,
+												totalFrames: 0,
+												percentage: 100,
+												estimatedTimeRemaining: 0,
+												phase: "optimizing" as const,
+											},
+								);
+
+								const postResult = await window.electronAPI.postProcessExport({
+									filePath: targetPath,
+									compress: settings.compressFile ?? false,
+									speedUp: settings.speedUp ?? false,
+								});
+
+								if (!postResult.success) {
+									console.error("Post-processing failed:", postResult.message);
+									toast.error(`Post-processing failed: ${postResult.message}`);
+								} else if (postResult.originalSize && postResult.finalSize) {
+									const reduction = Math.round(
+										(1 - postResult.finalSize / postResult.originalSize) * 100,
+									);
+									console.log(
+										`Post-processing: ${postResult.originalSize} → ${postResult.finalSize} (${reduction}% reduction)`,
+									);
+								}
+							}
+
 							setUnsavedExport(null);
 							handleExportSaved("Video", saveResult.path);
 						} else {
@@ -2138,6 +2172,8 @@ export default function VideoEditor() {
 		const settings: ExportSettings = {
 			format: exportFormat,
 			quality: exportFormat === "mp4" ? exportQuality : undefined,
+			compressFile: exportFormat === "mp4" ? compressFile : undefined,
+			speedUp: exportFormat === "mp4" ? speedUp : undefined,
 			gifConfig:
 				exportFormat === "gif"
 					? {
@@ -2168,6 +2204,8 @@ export default function VideoEditor() {
 		cropRegion,
 		handleExport,
 		handleFrameExport,
+		compressFile,
+		speedUp,
 	]);
 
 	const handleCancelExport = useCallback(() => {
@@ -2510,6 +2548,10 @@ export default function VideoEditor() {
 									onExportPipelineChange={setExportPipeline}
 									lightningSupported={lightningSupport.supported}
 									lightningSupportReason={lightningSupport.reason}
+									compressFile={compressFile}
+									onCompressFileChange={setCompressFile}
+									speedUp={speedUp}
+									onSpeedUpChange={setSpeedUp}
 									gifFrameRate={gifFrameRate}
 									onGifFrameRateChange={setGifFrameRate}
 									gifLoop={gifLoop}
