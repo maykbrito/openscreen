@@ -1,53 +1,86 @@
 export interface LightningSupport {
 	supported: boolean;
 	reason?: string;
+	hasWebGPU: boolean;
+	hasWebCodecs: boolean;
 }
 
 /**
  * Probes hardware video encoder support for Lightning pipeline.
- * Lightning uses WebGL rendering (synchronous) + hardware VideoEncoder.
+ * Lightning uses WebGPU rendering (synchronous) + hardware VideoEncoder.
  * Disabled on Linux where hardware encoding is unreliable.
  */
 export async function detectLightningSupport(): Promise<LightningSupport> {
+	const hasWebCodecs = typeof VideoEncoder !== "undefined" && typeof VideoDecoder !== "undefined";
+	const hasWebGPU = typeof navigator !== "undefined" && "gpu" in navigator;
+
 	// Disabled on Linux
 	if (typeof navigator !== "undefined" && /linux/i.test(navigator.userAgent)) {
-		return { supported: false, reason: "Lightning is not yet supported on Linux." };
+		return {
+			supported: false,
+			reason: "Lightning is not yet supported on Linux.",
+			hasWebGPU,
+			hasWebCodecs,
+		};
 	}
 
-	// Check hardware video encoder
-	if (typeof VideoEncoder === "undefined") {
-		return { supported: false, reason: "VideoEncoder API is not available." };
+	// Check WebCodecs
+	if (!hasWebCodecs) {
+		return {
+			supported: false,
+			reason: "VideoEncoder/VideoDecoder API is not available.",
+			hasWebGPU,
+			hasWebCodecs,
+		};
 	}
 
+	// Check WebGPU
+	if (!hasWebGPU) {
+		return {
+			supported: false,
+			reason: "WebGPU (navigator.gpu) is not available.",
+			hasWebGPU,
+			hasWebCodecs,
+		};
+	}
+
+	// Probe hardware encoder
 	try {
 		const config: VideoEncoderConfig = {
 			codec: "avc1.640033",
 			width: 1920,
 			height: 1080,
-			bitrate: 10_000_000,
+			bitrate: 8_000_000,
 			framerate: 60,
 			hardwareAcceleration: "prefer-hardware",
-			latencyMode: "quality",
-			bitrateMode: "variable",
 		};
 		const support = await VideoEncoder.isConfigSupported(config);
 		if (!support.supported) {
-			return { supported: false, reason: "Hardware H.264 encoder not supported." };
+			return {
+				supported: false,
+				reason: "Hardware H.264 encoder not supported.",
+				hasWebGPU,
+				hasWebCodecs,
+			};
 		}
 	} catch {
-		return { supported: false, reason: "Failed to probe hardware encoder support." };
+		return {
+			supported: false,
+			reason: "Failed to probe hardware encoder support.",
+			hasWebGPU,
+			hasWebCodecs,
+		};
 	}
 
-	return { supported: true };
+	return { supported: true, hasWebGPU, hasWebCodecs };
 }
 
-export function buildPipelinePath(opts: {
-	rendererType: "webgpu" | "webgl" | "unknown";
-	codec: string;
-	hardwareAcceleration: string;
-	latencyMode: string;
-}): string {
+export function buildPipelinePath(
+	rendererType: string,
+	codec: string,
+	acceleration: string,
+): string {
 	const renderer =
-		opts.rendererType === "webgpu" ? "WebGPU" : opts.rendererType === "webgl" ? "WebGL" : "Unknown";
-	return `${renderer} + WebCodecs (${opts.codec}/${opts.hardwareAcceleration}/${opts.latencyMode})`;
+		rendererType === "webgpu" ? "WebGPU" : rendererType === "webgl" ? "WebGL" : "Unknown";
+	return `${renderer} + WebCodecs (${codec}/${acceleration})`;
 }

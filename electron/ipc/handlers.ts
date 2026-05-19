@@ -41,6 +41,12 @@ import { createCursorRecordingSession } from "../native-bridge/cursor/recording/
 import { requestMacCursorAccessibilityAccess } from "../native-bridge/cursor/recording/macNativeCursorRecordingSession";
 import type { CursorRecordingSession } from "../native-bridge/cursor/recording/session";
 import { registerNativeBridgeHandlers } from "./nativeBridge";
+import {
+	cancelNativeExport,
+	finishNativeExport,
+	startNativeExport,
+	writeNativeFrame,
+} from "./nativeVideoExport";
 
 const PROJECT_FILE_EXTENSION = "openscreen";
 const SHORTCUTS_FILE = path.join(app.getPath("userData"), "shortcuts.json");
@@ -2694,6 +2700,22 @@ export function registerIpcHandlers(
 			}
 		},
 	);
+
+	ipcMain.handle("native-video-export-start", (_, config: { width: number; height: number; frameRate: number }) => {
+		return startNativeExport(config);
+	});
+
+	ipcMain.handle("native-video-export-write-frame", async (_, sessionId: string, frameData: Uint8Array) => {
+		await writeNativeFrame(sessionId, frameData);
+	});
+
+	ipcMain.handle("native-video-export-finish", async (_, sessionId: string) => {
+		return finishNativeExport(sessionId);
+	});
+
+	ipcMain.handle("native-video-export-cancel", (_, sessionId: string) => {
+		cancelNativeExport(sessionId);
+	});
 
 	registerNativeBridgeHandlers({
 		getPlatform: () => process.platform,

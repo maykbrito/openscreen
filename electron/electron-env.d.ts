@@ -256,6 +256,10 @@ interface Window {
 		onRequestSaveBeforeClose: (callback: () => Promise<boolean> | boolean) => () => void;
 		onRequestCloseConfirm: (callback: () => void) => () => void;
 		sendCloseConfirmResponse: (choice: "save" | "discard" | "cancel") => void;
+		nativeVideoExportStart: (config: { width: number; height: number; frameRate: number }) => Promise<string>;
+		nativeVideoExportWriteFrame: (sessionId: string, frameData: Uint8Array) => Promise<void>;
+		nativeVideoExportFinish: (sessionId: string) => Promise<string>;
+		nativeVideoExportCancel: (sessionId: string) => Promise<void>;
 		setLocale: (locale: string) => Promise<void>;
 		saveDiagnostic: (payload: {
 			error: string;

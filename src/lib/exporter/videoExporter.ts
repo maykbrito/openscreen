@@ -165,6 +165,16 @@ export class VideoExporter {
 		return this.config.pipeline === "lightning";
 	}
 
+	private async hasWebGPU(): Promise<boolean> {
+		if (!navigator.gpu) return false;
+		try {
+			const adapter = await navigator.gpu.requestAdapter();
+			return !!adapter;
+		} catch {
+			return false;
+		}
+	}
+
 	constructor(config: VideoExporterConfig) {
 		this.config = config;
 	}
@@ -238,6 +248,8 @@ export class VideoExporter {
 				webcamInfo = await webcamDecoder.loadMetadata(this.config.webcamVideoUrl);
 			}
 
+			const preferWebGPU = this.isLightning ? await this.hasWebGPU() : false;
+
 			const renderer = new FrameRenderer({
 				width: this.config.width,
 				height: this.config.height,
@@ -270,7 +282,7 @@ export class VideoExporter {
 				cursorTelemetry: this.config.cursorTelemetry,
 				cursorClickTimestamps: this.config.cursorClickTimestamps,
 				platform,
-				preferWebGPU: false,
+				preferWebGPU,
 			});
 			this.renderer = renderer;
 			await renderer.initialize();
@@ -278,12 +290,11 @@ export class VideoExporter {
 			await this.initializeEncoder(encoderPreference);
 
 			if (this.isLightning) {
-				this.currentPipelinePath = buildPipelinePath({
-					rendererType: renderer.getRendererType(),
-					codec: this.config.codec || "avc1.640033",
-					hardwareAcceleration: encoderPreference,
-					latencyMode: "quality",
-				});
+				this.currentPipelinePath = buildPipelinePath(
+					renderer.getRendererType(),
+					this.config.codec || "avc1.640033",
+					encoderPreference,
+				);
 				console.log(`[VideoExporter] Lightning path: ${this.currentPipelinePath}`);
 			} else {
 				this.currentPipelinePath = "";

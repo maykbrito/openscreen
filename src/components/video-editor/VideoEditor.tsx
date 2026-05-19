@@ -212,7 +212,11 @@ export default function VideoEditor() {
 	const [exportQuality, setExportQuality] = useState<ExportQuality>("good");
 	const [exportFormat, setExportFormat] = useState<ExportFormat>("mp4");
 	const [exportPipeline, setExportPipeline] = useState<ExportPipeline>("lightning");
-	const [lightningSupport, setLightningSupport] = useState<LightningSupport>({ supported: false });
+	const [lightningSupport, setLightningSupport] = useState<LightningSupport>({
+		supported: false,
+		hasWebGPU: false,
+		hasWebCodecs: false,
+	});
 	const [gifFrameRate, setGifFrameRate] = useState<GifFrameRate>(15);
 	const [gifLoop, setGifLoop] = useState(true);
 	const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>("medium");

@@ -249,4 +249,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	sendCloseConfirmResponse: (choice: "save" | "discard" | "cancel") => {
 		ipcRenderer.send("close-confirm-response", choice);
 	},
+	nativeVideoExportStart: (config: { width: number; height: number; frameRate: number }) =>
+		ipcRenderer.invoke("native-video-export-start", config),
+	nativeVideoExportWriteFrame: (sessionId: string, frameData: Uint8Array) =>
+		ipcRenderer.invoke("native-video-export-write-frame", sessionId, frameData),
+	nativeVideoExportFinish: (sessionId: string) =>
+		ipcRenderer.invoke("native-video-export-finish", sessionId),
+	nativeVideoExportCancel: (sessionId: string) =>
+		ipcRenderer.invoke("native-video-export-cancel", sessionId),
 });
