@@ -1,4 +1,4 @@
-import { execFile } from "child_process";
+import { execFile, execFileSync } from "child_process";
 import { ipcMain } from "electron";
 import ffmpegStatic from "ffmpeg-static";
 import * as fs from "fs/promises";
@@ -7,7 +7,24 @@ import { promisify } from "util";
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Resolves the ffmpeg binary path.
+ * Prefers system-installed ffmpeg (Homebrew, etc.) for better encoding performance,
+ * falls back to ffmpeg-static only when system ffmpeg is not found.
+ */
 function getFfmpegPath(): string {
+	// Try system ffmpeg first (matches Quick Action behavior)
+	const systemPaths = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"];
+	for (const p of systemPaths) {
+		try {
+			execFileSync(p, ["-version"], { stdio: "ignore" });
+			return p;
+		} catch {
+			// not available, try next
+		}
+	}
+
+	// Fallback to bundled ffmpeg-static
 	let ffmpegPath = ffmpegStatic as string;
 	if (ffmpegPath.includes("app.asar")) {
 		ffmpegPath = ffmpegPath.replace("app.asar", "app.asar.unpacked");
@@ -52,27 +69,16 @@ export function registerFfmpegPostProcessHandler(): void {
 				const base = path.basename(filePath, ext);
 				const tempPath = path.join(dir, `${base}_processing${ext}`);
 
+				// Replicate the exact Quick Action behavior:
+				// ffmpeg -y -i "$1" -vf "setpts=PTS/1.15" -af "atempo=1.15" $OUTPUT
+				// No explicit codec flags – let ffmpeg pick optimal defaults.
 				const args: string[] = ["-y", "-i", filePath];
 
 				if (speedUp) {
 					args.push("-vf", "setpts=PTS/1.15");
+					args.push("-af", "atempo=1.15");
 				}
 
-				if (compress) {
-					args.push("-c:v", "libx264", "-crf", "23", "-preset", "medium");
-				} else if (speedUp) {
-					// When only speeding up, still need to re-encode video
-					args.push("-c:v", "libx264", "-crf", "23", "-preset", "medium");
-				}
-
-				// Handle audio: use atempo for speed, aac for codec, or -an if no audio
-				if (speedUp) {
-					args.push("-af", "atempo=1.15", "-c:a", "aac");
-				} else if (compress) {
-					args.push("-c:a", "aac");
-				}
-
-				// If no audio stream exists, ffmpeg will just ignore -af/-c:a
 				args.push(tempPath);
 
 				await execFileAsync(ffmpegPath, args, { timeout: 300000 });
