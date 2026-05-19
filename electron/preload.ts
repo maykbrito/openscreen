@@ -1,5 +1,8 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { NativeMacRecordingRequest } from "../src/lib/nativeMacRecording";
+import type { NativeWindowsRecordingRequest } from "../src/lib/nativeWindowsRecording";
 import type { RecordingSession, StoreRecordedSessionInput } from "../src/lib/recordingSession";
+import { NATIVE_BRIDGE_CHANNEL, type NativeBridgeRequest } from "../src/native/contracts";
 
 // Asset base URL is passed from the main process via webPreferences.additionalArguments
 // (see windows.ts). Sandboxed preloads cannot import node:path / node:url, so we
@@ -10,11 +13,20 @@ const assetBaseUrl = assetBaseUrlArg ? assetBaseUrlArg.slice(ASSET_BASE_URL_ARG_
 
 contextBridge.exposeInMainWorld("electronAPI", {
 	assetBaseUrl,
+	invokeNativeBridge: <TData>(request: NativeBridgeRequest) => {
+		return ipcRenderer.invoke(NATIVE_BRIDGE_CHANNEL, request) as Promise<TData>;
+	},
 	hudOverlayHide: () => {
 		ipcRenderer.send("hud-overlay-hide");
 	},
 	hudOverlayClose: () => {
 		ipcRenderer.send("hud-overlay-close");
+	},
+	setHudOverlayIgnoreMouseEvents: (ignore: boolean) => {
+		ipcRenderer.send("hud-overlay-ignore-mouse-events", ignore);
+	},
+	moveHudOverlayBy: (deltaX: number, deltaY: number) => {
+		ipcRenderer.send("hud-overlay-move-by", deltaX, deltaY);
 	},
 	getSources: async (opts: Electron.SourcesOptions) => {
 		return await ipcRenderer.invoke("get-sources", opts);
@@ -40,10 +52,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	requestCameraAccess: () => {
 		return ipcRenderer.invoke("request-camera-access");
 	},
-	requestAccessibilityAccess: () => {
-		return ipcRenderer.invoke("request-accessibility-access");
+	requestScreenAccess: () => {
+		return ipcRenderer.invoke("request-screen-access");
 	},
-
+	requestNativeMacCursorAccess: () => {
+		return ipcRenderer.invoke("request-native-mac-cursor-access");
+	},
 	storeRecordedVideo: (videoData: ArrayBuffer, fileName: string) => {
 		return ipcRenderer.invoke("store-recorded-video", videoData, fileName);
 	},
@@ -54,8 +68,44 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	getRecordedVideoPath: () => {
 		return ipcRenderer.invoke("get-recorded-video-path");
 	},
-	setRecordingState: (recording: boolean, recordingId?: number) => {
-		return ipcRenderer.invoke("set-recording-state", recording, recordingId);
+	setRecordingState: (
+		recording: boolean,
+		recordingId?: number,
+		cursorCaptureMode?: import("../src/lib/recordingSession").CursorCaptureMode,
+	) => {
+		return ipcRenderer.invoke("set-recording-state", recording, recordingId, cursorCaptureMode);
+	},
+	isNativeWindowsCaptureAvailable: () => {
+		return ipcRenderer.invoke("is-native-windows-capture-available");
+	},
+	isNativeMacCaptureAvailable: () => {
+		return ipcRenderer.invoke("is-native-mac-capture-available");
+	},
+	startNativeWindowsRecording: (request: NativeWindowsRecordingRequest) => {
+		return ipcRenderer.invoke("start-native-windows-recording", request);
+	},
+	stopNativeWindowsRecording: (discard?: boolean) => {
+		return ipcRenderer.invoke("stop-native-windows-recording", discard);
+	},
+	startNativeMacRecording: (request: NativeMacRecordingRequest) => {
+		return ipcRenderer.invoke("start-native-mac-recording", request);
+	},
+	pauseNativeMacRecording: () => {
+		return ipcRenderer.invoke("pause-native-mac-recording");
+	},
+	resumeNativeMacRecording: () => {
+		return ipcRenderer.invoke("resume-native-mac-recording");
+	},
+	stopNativeMacRecording: (discard?: boolean) => {
+		return ipcRenderer.invoke("stop-native-mac-recording", discard);
+	},
+	attachNativeMacWebcamRecording: (payload: {
+		screenVideoPath: string;
+		recordingId: number;
+		webcam: { fileName: string; videoData: ArrayBuffer };
+		cursorCaptureMode?: import("../src/lib/recordingSession").CursorCaptureMode;
+	}) => {
+		return ipcRenderer.invoke("attach-native-mac-webcam-recording", payload);
 	},
 	getCursorTelemetry: (videoPath?: string) => {
 		return ipcRenderer.invoke("get-cursor-telemetry", videoPath);
@@ -71,8 +121,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	openExternalUrl: (url: string) => {
 		return ipcRenderer.invoke("open-external-url", url);
 	},
-	saveExportedVideo: (videoData: ArrayBuffer, fileName: string) => {
-		return ipcRenderer.invoke("save-exported-video", videoData, fileName);
+	pickExportSavePath: (fileName: string, exportFolder?: string) => {
+		return ipcRenderer.invoke("pick-export-save-path", fileName, exportFolder);
+	},
+	writeExportToPath: (videoData: ArrayBuffer, filePath: string) => {
+		return ipcRenderer.invoke("write-export-to-path", videoData, filePath);
 	},
 	openVideoFilePicker: () => {
 		return ipcRenderer.invoke("open-video-file-picker");
@@ -91,6 +144,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	},
 	readBinaryFile: (filePath: string) => {
 		return ipcRenderer.invoke("read-binary-file", filePath);
+	},
+	preparePreviewAudioTrack: (filePath: string) => {
+		return ipcRenderer.invoke("prepare-preview-audio-track", filePath);
 	},
 	clearCurrentVideoPath: () => {
 		return ipcRenderer.invoke("clear-current-video-path");
@@ -134,6 +190,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	setLocale: (locale: string) => {
 		return ipcRenderer.invoke("set-locale", locale);
 	},
+	saveDiagnostic: (payload: {
+		error: string;
+		stack?: string;
+		projectState: unknown;
+		logs: string[];
+	}) => {
+		return ipcRenderer.invoke("save-diagnostic", payload);
+	},
 	setMicrophoneExpanded: (expanded: boolean) => {
 		ipcRenderer.send("hud:setMicrophoneExpanded", expanded);
 	},
@@ -165,5 +229,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
 		};
 		ipcRenderer.on("request-save-before-close", listener);
 		return () => ipcRenderer.removeListener("request-save-before-close", listener);
+	},
+	onRequestCloseConfirm: (callback: () => void) => {
+		const listener = () => callback();
+		ipcRenderer.on("request-close-confirm", listener);
+		return () => ipcRenderer.removeListener("request-close-confirm", listener);
+	},
+	sendCloseConfirmResponse: (choice: "save" | "discard" | "cancel") => {
+		ipcRenderer.send("close-confirm-response", choice);
 	},
 });

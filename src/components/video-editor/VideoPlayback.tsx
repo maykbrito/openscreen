@@ -25,8 +25,24 @@ import {
 	type WebcamLayoutPreset,
 	type WebcamSizePreset,
 } from "@/lib/compositeLayout";
+import {
+	createNativeCursorMotionBlurState,
+	createNativeCursorSmoothingState,
+	getNativeCursorClickBounceProgress,
+	getNativeCursorClickBounceScale,
+	getNativeCursorMotionBlurPx,
+	hasNativeCursorRecordingData,
+	projectNativeCursorToLocal,
+	projectNativeCursorToStage,
+	resetNativeCursorMotionBlurState,
+	resetNativeCursorSmoothingState,
+	resolveInterpolatedNativeCursorFrame,
+	resolveNativeCursorRenderAsset,
+	smoothNativeCursorSample,
+} from "@/lib/cursor/nativeCursor";
 import { classifyWallpaper, DEFAULT_WALLPAPER, resolveImageWallpaperUrl } from "@/lib/wallpaper";
 import { getCssClipPath } from "@/lib/webcamMaskShapes";
+import type { CursorRecordingData } from "@/native/contracts";
 import {
 	type AspectRatio,
 	formatAspectRatioForCSS,
@@ -36,7 +52,12 @@ import { AnnotationOverlay } from "./AnnotationOverlay";
 import {
 	type AnnotationRegion,
 	type BlurData,
+	type CursorTelemetryPoint,
 	computeRotation3DContainScale,
+	DEFAULT_CURSOR_CLICK_BOUNCE,
+	DEFAULT_CURSOR_MOTION_BLUR,
+	DEFAULT_CURSOR_SIZE,
+	DEFAULT_CURSOR_SMOOTHING,
 	DEFAULT_ROTATION_3D,
 	isRotation3DIdentity,
 	lerpRotation3D,
@@ -56,17 +77,12 @@ import {
 	ZOOM_SCALE_DEADZONE,
 	ZOOM_TRANSLATION_DEADZONE_PX,
 } from "./videoPlayback/constants";
+import { adaptiveSmoothFactor, smoothCursorFocus } from "./videoPlayback/cursorFollowUtils";
 import {
-	adaptiveSmoothFactor,
-	interpolateCursorAt,
-	smoothCursorFocus,
-} from "./videoPlayback/cursorFollowUtils";
-import {
-	type CursorHighlightConfig,
-	clickEmphasisAlpha,
-	DEFAULT_CURSOR_HIGHLIGHT,
-	drawCursorHighlightGraphics,
-} from "./videoPlayback/cursorHighlight";
+	DEFAULT_CURSOR_CONFIG,
+	PixiCursorOverlay,
+	preloadCursorAssets,
+} from "./videoPlayback/cursorRenderer";
 import { clampFocusToStage as clampFocusToStageUtil } from "./videoPlayback/focusUtils";
 import { layoutVideoContent as layoutVideoContentUtil } from "./videoPlayback/layoutUtils";
 import { clamp01 } from "./videoPlayback/mathUtils";
@@ -112,6 +128,7 @@ interface VideoPlaybackProps {
 	trimRegions?: TrimRegion[];
 	speedRegions?: SpeedRegion[];
 	aspectRatio: AspectRatio;
+	cursorRecordingData?: CursorRecordingData | null;
 	annotationRegions?: AnnotationRegion[];
 	selectedAnnotationId?: string | null;
 	onSelectAnnotation?: (id: string | null) => void;
@@ -124,9 +141,14 @@ interface VideoPlaybackProps {
 	onBlurSizeChange?: (id: string, size: { width: number; height: number }) => void;
 	onBlurDataChange?: (id: string, blurData: BlurData) => void;
 	onBlurDataCommit?: () => void;
-	cursorTelemetry?: import("./types").CursorTelemetryPoint[];
-	cursorHighlight?: CursorHighlightConfig;
+	cursorTelemetry?: CursorTelemetryPoint[];
 	cursorClickTimestamps?: number[];
+	showCursor?: boolean;
+	cursorSize?: number;
+	cursorSmoothing?: number;
+	cursorMotionBlur?: number;
+	cursorClickBounce?: number;
+	cursorClipToBounds?: boolean;
 }
 
 export interface VideoPlaybackRef {
@@ -137,6 +159,61 @@ export interface VideoPlaybackRef {
 	containerRef: React.RefObject<HTMLDivElement>;
 	play: () => Promise<void>;
 	pause: () => void;
+}
+
+function getResolvedVideoDuration(video: HTMLVideoElement): number | null {
+	if (Number.isFinite(video.duration) && video.duration > 0) {
+		return video.duration;
+	}
+
+	if (video.seekable.length > 0) {
+		const lastRangeIndex = video.seekable.length - 1;
+		const seekableEnd = video.seekable.end(lastRangeIndex);
+		if (Number.isFinite(seekableEnd) && seekableEnd > 0) {
+			return seekableEnd;
+		}
+	}
+
+	return null;
+}
+
+function getEndedVideoDuration(video: HTMLVideoElement): number | null {
+	const currentTime = video.currentTime;
+	if (!Number.isFinite(currentTime) || currentTime <= 0) {
+		return null;
+	}
+
+	if (video.ended) {
+		return currentTime;
+	}
+
+	const resolvedDuration = getResolvedVideoDuration(video);
+	const durationEpsilonSeconds = 0.05;
+	if (resolvedDuration && currentTime >= resolvedDuration - durationEpsilonSeconds) {
+		return resolvedDuration;
+	}
+
+	return null;
+}
+
+type AudioTrackListLike = {
+	length: number;
+	[index: number]: { enabled: boolean };
+};
+
+type VideoElementWithAudioTracks = HTMLVideoElement & {
+	audioTracks?: AudioTrackListLike;
+};
+
+function enableAllPreviewAudioTracks(video: HTMLVideoElement) {
+	const audioTracks = (video as VideoElementWithAudioTracks).audioTracks;
+	if (!audioTracks || audioTracks.length <= 1) {
+		return;
+	}
+
+	for (let index = 0; index < audioTracks.length; index += 1) {
+		audioTracks[index].enabled = true;
+	}
 }
 
 const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
@@ -172,6 +249,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 			trimRegions = [],
 			speedRegions = [],
 			aspectRatio,
+			cursorRecordingData,
 			annotationRegions = [],
 			selectedAnnotationId,
 			onSelectAnnotation,
@@ -185,12 +263,18 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 			onBlurDataChange,
 			onBlurDataCommit,
 			cursorTelemetry = [],
-			cursorHighlight = DEFAULT_CURSOR_HIGHLIGHT,
 			cursorClickTimestamps = [],
+			showCursor = false,
+			cursorSize = DEFAULT_CURSOR_SIZE,
+			cursorSmoothing = DEFAULT_CURSOR_SMOOTHING,
+			cursorMotionBlur = DEFAULT_CURSOR_MOTION_BLUR,
+			cursorClickBounce = DEFAULT_CURSOR_CLICK_BOUNCE,
+			cursorClipToBounds = false,
 		},
 		ref,
 	) => {
 		const videoRef = useRef<HTMLVideoElement | null>(null);
+		const supplementalAudioRef = useRef<HTMLAudioElement | null>(null);
 		const webcamVideoRef = useRef<HTMLVideoElement | null>(null);
 		const containerRef = useRef<HTMLDivElement | null>(null);
 		const appRef = useRef<Application | null>(null);
@@ -200,6 +284,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		const timeUpdateAnimationRef = useRef<number | null>(null);
 		const [pixiReady, setPixiReady] = useState(false);
 		const [videoReady, setVideoReady] = useState(false);
+		const [supplementalAudioPath, setSupplementalAudioPath] = useState<string | null>(null);
 		const [overlaySize, setOverlaySize] = useState({ width: 800, height: 600 });
 		const [overlayElement, setOverlayElement] = useState<HTMLDivElement | null>(null);
 		const overlayRef = useRef<HTMLDivElement | null>(null);
@@ -211,10 +296,8 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		const [webcamDimensions, setWebcamDimensions] = useState<Size | null>(null);
 		const currentTimeRef = useRef(0);
 		const zoomRegionsRef = useRef<ZoomRegion[]>([]);
-		const cursorTelemetryRef = useRef<import("./types").CursorTelemetryPoint[]>([]);
-		const cursorHighlightRef = useRef<CursorHighlightConfig>(DEFAULT_CURSOR_HIGHLIGHT);
+		const cursorTelemetryRef = useRef<CursorTelemetryPoint[]>([]);
 		const cursorClickTimestampsRef = useRef<number[]>([]);
-		const cursorHighlightGraphicsRef = useRef<Graphics | null>(null);
 		const selectedZoomIdRef = useRef<string | null>(null);
 		const animationStateRef = useRef({
 			scale: 1,
@@ -251,12 +334,142 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		const trimRegionsRef = useRef<TrimRegion[]>([]);
 		const speedRegionsRef = useRef<SpeedRegion[]>([]);
 		const motionBlurAmountRef = useRef(motionBlurAmount);
+		const cursorOverlayRef = useRef<PixiCursorOverlay | null>(null);
+		const showCursorRef = useRef(showCursor);
+		const cursorSizeRef = useRef(cursorSize);
+		const cursorSmoothingRef = useRef(cursorSmoothing);
+		const cursorMotionBlurRef = useRef(cursorMotionBlur);
+		const cursorClickBounceRef = useRef(cursorClickBounce);
+		const cursorClipToBoundsRef = useRef(cursorClipToBounds);
 		const motionBlurStateRef = useRef<MotionBlurState>(createMotionBlurState());
 		const onTimeUpdateRef = useRef(onTimeUpdate);
 		const onPlayStateChangeRef = useRef(onPlayStateChange);
 		const videoReadyRafRef = useRef<number | null>(null);
 		const smoothedAutoFocusRef = useRef<ZoomFocus | null>(null);
 		const prevTargetProgressRef = useRef(0);
+		const durationResolutionTimeoutRef = useRef<number | null>(null);
+		const lastResolvedDurationRef = useRef<number | null>(null);
+		const isResolvingDurationRef = useRef(false);
+		const hasNativeCursorRecordingRef = useRef(false);
+		const cursorRecordingDataRef = useRef(cursorRecordingData);
+		const cropRegionRef = useRef(cropRegion);
+		const nativeCursorSpriteRef = useRef<Sprite | null>(null);
+		const nativeCursorTextureIdRef = useRef<string | null>(null);
+		const nativeCursorImageRef = useRef<HTMLImageElement | null>(null);
+		const nativeCursorImageIdRef = useRef<string | null>(null);
+		const nativeCursorSmoothingStateRef = useRef(createNativeCursorSmoothingState());
+		const nativeCursorMotionBlurStateRef = useRef(createNativeCursorMotionBlurState());
+		const nativeCursorClipRef = useRef<HTMLDivElement | null>(null);
+		const borderRadiusRef = useRef<number>(0);
+
+		const hasNativeCursorRecording = useMemo(
+			() => hasNativeCursorRecordingData(cursorRecordingData),
+			[cursorRecordingData],
+		);
+
+		const syncResolvedDuration = useCallback(
+			(video: HTMLVideoElement) => {
+				const resolvedDuration = getResolvedVideoDuration(video);
+				if (!resolvedDuration) {
+					return false;
+				}
+
+				const normalizedDuration = Math.round(resolvedDuration * 1000) / 1000;
+				if (lastResolvedDurationRef.current !== normalizedDuration) {
+					lastResolvedDurationRef.current = normalizedDuration;
+					onDurationChange(normalizedDuration);
+				}
+
+				return true;
+			},
+			[onDurationChange],
+		);
+
+		const forceResolveDuration = useCallback(
+			(video: HTMLVideoElement) => {
+				if (isResolvingDurationRef.current) {
+					return;
+				}
+
+				if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
+					return;
+				}
+
+				isResolvingDurationRef.current = true;
+				const previousMuted = video.muted;
+
+				const finalize = () => {
+					video.removeEventListener("durationchange", handleProgress);
+					video.removeEventListener("timeupdate", handleProgress);
+					video.removeEventListener("loadeddata", handleProgress);
+					video.removeEventListener("ended", handleProgress);
+					if (durationResolutionTimeoutRef.current) {
+						clearTimeout(durationResolutionTimeoutRef.current);
+						durationResolutionTimeoutRef.current = null;
+					}
+					video.muted = previousMuted;
+					isResolvingDurationRef.current = false;
+				};
+
+				const resolveCurrentDuration = () => {
+					if (syncResolvedDuration(video)) {
+						return true;
+					}
+
+					const endedDuration = getEndedVideoDuration(video);
+					if (endedDuration) {
+						lastResolvedDurationRef.current = null;
+						onDurationChange(Math.round(endedDuration * 1000) / 1000);
+						return true;
+					}
+
+					return false;
+				};
+
+				const handleProgress = () => {
+					if (!resolveCurrentDuration()) {
+						return;
+					}
+
+					try {
+						video.pause();
+						video.currentTime = 0;
+					} catch {
+						// no-op
+					}
+					currentTimeRef.current = 0;
+					finalize();
+				};
+
+				video.addEventListener("durationchange", handleProgress);
+				video.addEventListener("timeupdate", handleProgress);
+				video.addEventListener("loadeddata", handleProgress);
+				video.addEventListener("ended", handleProgress);
+				durationResolutionTimeoutRef.current = window.setTimeout(() => {
+					handleProgress();
+					finalize();
+				}, 1500);
+				video.muted = true;
+
+				const playAttempt = video.play();
+				if (playAttempt && typeof playAttempt.catch === "function") {
+					playAttempt.catch(() => {
+						try {
+							video.currentTime = Math.max(video.currentTime, 0.1);
+						} catch {
+							finalize();
+						}
+					});
+				}
+
+				try {
+					video.currentTime = Math.max(video.currentTime, 0.1);
+				} catch {
+					finalize();
+				}
+			},
+			[onDurationChange, syncResolvedDuration],
+		);
 
 		const clampFocusToStage = useCallback((focus: ZoomFocus, depth: ZoomDepth) => {
 			return clampFocusToStageUtil(focus, depth, stageSizeRef.current);
@@ -345,6 +558,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				baseScaleRef.current = result.baseScale;
 				baseOffsetRef.current = result.baseOffset;
 				baseMaskRef.current = result.maskRect;
+				borderRadiusRef.current = result.maskBorderRadius;
 				cropBoundsRef.current = result.cropBounds;
 				setWebcamLayout(result.webcamRect);
 
@@ -396,10 +610,19 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				if (!vid) return;
 				try {
 					allowPlaybackRef.current = true;
+					enableAllPreviewAudioTracks(vid);
 					await vid.play().catch((err) => {
 						console.log("PLAY ERROR:", err);
 						throw err;
 					});
+					const supplementalAudio = supplementalAudioRef.current;
+					if (supplementalAudio) {
+						supplementalAudio.currentTime = vid.currentTime;
+						supplementalAudio.playbackRate = vid.playbackRate;
+						await supplementalAudio.play().catch(() => {
+							// The main video remains the source of truth for playback state.
+						});
+					}
 				} catch (error) {
 					allowPlaybackRef.current = false;
 					throw error;
@@ -412,6 +635,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 					return;
 				}
 				video.pause();
+				supplementalAudioRef.current?.pause();
 			},
 		}));
 
@@ -543,13 +767,6 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		}, [cursorTelemetry]);
 
 		useEffect(() => {
-			cursorHighlightRef.current = cursorHighlight;
-			if (cursorHighlightGraphicsRef.current) {
-				drawCursorHighlightGraphics(cursorHighlightGraphicsRef.current, cursorHighlight);
-			}
-		}, [cursorHighlight]);
-
-		useEffect(() => {
 			cursorClickTimestampsRef.current = cursorClickTimestamps;
 		}, [cursorClickTimestamps]);
 
@@ -572,6 +789,59 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 		useEffect(() => {
 			motionBlurAmountRef.current = motionBlurAmount;
 		}, [motionBlurAmount]);
+
+		useEffect(() => {
+			cursorTelemetryRef.current = cursorTelemetry;
+		}, [cursorTelemetry]);
+
+		useEffect(() => {
+			showCursorRef.current = showCursor;
+		}, [showCursor]);
+
+		useEffect(() => {
+			hasNativeCursorRecordingRef.current = hasNativeCursorRecording;
+		}, [hasNativeCursorRecording]);
+
+		useEffect(() => {
+			cursorRecordingDataRef.current = cursorRecordingData;
+			resetNativeCursorSmoothingState(nativeCursorSmoothingStateRef.current);
+			resetNativeCursorMotionBlurState(nativeCursorMotionBlurStateRef.current);
+		}, [cursorRecordingData]);
+
+		useEffect(() => {
+			cropRegionRef.current = cropRegion;
+		}, [cropRegion]);
+
+		useEffect(() => {
+			cursorSizeRef.current = cursorSize;
+		}, [cursorSize]);
+
+		useEffect(() => {
+			cursorSmoothingRef.current = cursorSmoothing;
+		}, [cursorSmoothing]);
+
+		useEffect(() => {
+			cursorMotionBlurRef.current = cursorMotionBlur;
+		}, [cursorMotionBlur]);
+
+		useEffect(() => {
+			cursorClickBounceRef.current = cursorClickBounce;
+		}, [cursorClickBounce]);
+
+		useEffect(() => {
+			cursorClipToBoundsRef.current = cursorClipToBounds;
+		}, [cursorClipToBounds]);
+
+		// Sync cursor overlay config when settings change
+		useEffect(() => {
+			const overlay = cursorOverlayRef.current;
+			if (!overlay) return;
+			overlay.setDotRadius(DEFAULT_CURSOR_CONFIG.dotRadius * cursorSize);
+			overlay.setSmoothingFactor(cursorSmoothing);
+			overlay.setMotionBlur(cursorMotionBlur);
+			overlay.setClickBounce(cursorClickBounce);
+			overlay.reset();
+		}, [cursorSize, cursorSmoothing, cursorMotionBlur, cursorClickBounce]);
 
 		useEffect(() => {
 			onTimeUpdateRef.current = onTimeUpdate;
@@ -692,6 +962,13 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 			let app: Application | null = null;
 
 			(async () => {
+				let cursorOverlayEnabled = true;
+				try {
+					await preloadCursorAssets();
+				} catch {
+					cursorOverlayEnabled = false;
+				}
+
 				app = new Application();
 
 				await app.init({
@@ -727,12 +1004,30 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				videoContainerRef.current = videoContainer;
 				cameraContainer.addChild(videoContainer);
 
+				// Cursor overlay - rendered above the masked video
+				if (cursorOverlayEnabled) {
+					const cursorOverlay = new PixiCursorOverlay({
+						dotRadius: DEFAULT_CURSOR_CONFIG.dotRadius * cursorSizeRef.current,
+						smoothingFactor: cursorSmoothingRef.current,
+						motionBlur: cursorMotionBlurRef.current,
+						clickBounce: cursorClickBounceRef.current,
+					});
+					cursorOverlayRef.current = cursorOverlay;
+				}
+
 				setPixiReady(true);
 			})();
 
 			return () => {
 				mounted = false;
 				setPixiReady(false);
+				if (cursorOverlayRef.current) {
+					cursorOverlayRef.current.destroy();
+					cursorOverlayRef.current = null;
+				}
+				nativeCursorSpriteRef.current = null;
+				nativeCursorTextureIdRef.current = null;
+				nativeCursorImageIdRef.current = null;
 				if (app && app.renderer) {
 					app.destroy(true, {
 						children: true,
@@ -749,22 +1044,84 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 
 		useEffect(() => {
 			if (!videoPath) {
+				lastResolvedDurationRef.current = null;
+				isResolvingDurationRef.current = false;
 				setVideoReady(false);
+				setSupplementalAudioPath(null);
 				return;
 			}
 
+			let cancelled = false;
+			window.electronAPI
+				?.preparePreviewAudioTrack?.(videoPath)
+				.then((result) => {
+					if (!cancelled) {
+						setSupplementalAudioPath(result.success ? (result.path ?? null) : null);
+					}
+				})
+				.catch(() => {
+					if (!cancelled) {
+						setSupplementalAudioPath(null);
+					}
+				});
+
 			const video = videoRef.current;
-			if (!video) return;
+			if (!video) {
+				return () => {
+					cancelled = true;
+				};
+			}
 			video.pause();
 			video.currentTime = 0;
 			allowPlaybackRef.current = false;
 			lockedVideoDimensionsRef.current = null;
+			lastResolvedDurationRef.current = null;
+			isResolvingDurationRef.current = false;
+			if (durationResolutionTimeoutRef.current) {
+				clearTimeout(durationResolutionTimeoutRef.current);
+				durationResolutionTimeoutRef.current = null;
+			}
 			setVideoReady(false);
 			if (videoReadyRafRef.current) {
 				cancelAnimationFrame(videoReadyRafRef.current);
 				videoReadyRafRef.current = null;
 			}
+			video.load();
+
+			return () => {
+				cancelled = true;
+			};
 		}, [videoPath]);
+
+		useEffect(() => {
+			const video = videoRef.current;
+			const supplementalAudio = supplementalAudioRef.current;
+			if (!video || !supplementalAudio || !supplementalAudioPath) {
+				return;
+			}
+
+			const activeSpeedRegion =
+				speedRegions.find(
+					(region) => currentTime * 1000 >= region.startMs && currentTime * 1000 < region.endMs,
+				) ?? null;
+			supplementalAudio.playbackRate = activeSpeedRegion ? activeSpeedRegion.speed : 1;
+
+			if (!isPlaying) {
+				supplementalAudio.pause();
+				if (Math.abs(supplementalAudio.currentTime - currentTime) > 0.05) {
+					supplementalAudio.currentTime = currentTime;
+				}
+				return;
+			}
+
+			if (Math.abs(supplementalAudio.currentTime - video.currentTime) > 0.15) {
+				supplementalAudio.currentTime = video.currentTime;
+			}
+
+			supplementalAudio.play().catch(() => {
+				// Keep video playback running even if supplemental preview audio is unavailable.
+			});
+		}, [currentTime, isPlaying, speedRegions, supplementalAudioPath]);
 
 		useEffect(() => {
 			if (!pixiReady || !videoReady) return;
@@ -793,12 +1150,15 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 			videoContainer.addChild(maskGraphics);
 			videoContainer.mask = maskGraphics;
 			maskGraphicsRef.current = maskGraphics;
+			const nativeCursorSprite = new Sprite(Texture.EMPTY);
+			nativeCursorSprite.visible = false;
+			nativeCursorSprite.eventMode = "none";
+			nativeCursorSpriteRef.current = nativeCursorSprite;
+			if (cursorOverlayRef.current) {
+				videoContainer.addChild(cursorOverlayRef.current.container);
+			}
 
-			const cursorHighlightGraphics = new Graphics();
-			cursorHighlightGraphics.visible = false;
-			videoContainer.addChild(cursorHighlightGraphics);
-			cursorHighlightGraphicsRef.current = cursorHighlightGraphics;
-			drawCursorHighlightGraphics(cursorHighlightGraphics, cursorHighlightRef.current);
+			videoContainer.addChild(nativeCursorSprite);
 
 			animationStateRef.current = {
 				scale: 1,
@@ -862,10 +1222,11 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 					videoContainer.removeChild(maskGraphics);
 					maskGraphics.destroy();
 				}
-				if (cursorHighlightGraphicsRef.current) {
-					videoContainer.removeChild(cursorHighlightGraphicsRef.current);
-					cursorHighlightGraphicsRef.current.destroy();
-					cursorHighlightGraphicsRef.current = null;
+				if (nativeCursorSpriteRef.current) {
+					videoContainer.removeChild(nativeCursorSpriteRef.current);
+					nativeCursorSpriteRef.current.destroy();
+					nativeCursorSpriteRef.current = null;
+					nativeCursorTextureIdRef.current = null;
 				}
 				videoContainer.mask = null;
 				maskGraphicsRef.current = null;
@@ -1088,39 +1449,6 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 					motionVector,
 				);
 
-				const cursorGraphics = cursorHighlightGraphicsRef.current;
-				const cursorConfig = cursorHighlightRef.current;
-				const lockedDims = lockedVideoDimensionsRef.current;
-				if (cursorGraphics) {
-					if (cursorConfig.enabled && lockedDims && cursorTelemetryRef.current.length > 0) {
-						const emphasisAlpha = clickEmphasisAlpha(
-							currentTimeRef.current,
-							cursorClickTimestampsRef.current,
-							cursorConfig,
-						);
-						const cursorPoint =
-							emphasisAlpha > 0
-								? interpolateCursorAt(cursorTelemetryRef.current, currentTimeRef.current)
-								: null;
-						if (cursorPoint) {
-							const baseScale = baseScaleRef.current;
-							const baseOffset = baseOffsetRef.current;
-							const cx = cursorPoint.cx + cursorConfig.offsetXNorm;
-							const cy = cursorPoint.cy + cursorConfig.offsetYNorm;
-							cursorGraphics.position.set(
-								baseOffset.x + cx * lockedDims.width * baseScale,
-								baseOffset.y + cy * lockedDims.height * baseScale,
-							);
-							cursorGraphics.alpha = emphasisAlpha;
-							cursorGraphics.visible = true;
-						} else {
-							cursorGraphics.visible = false;
-						}
-					} else {
-						cursorGraphics.visible = false;
-					}
-				}
-
 				const isMotionBlurActive =
 					(motionBlurAmountRef.current || 0) > 0 && isPlayingRef.current && !isScrubbingRef.current;
 
@@ -1139,6 +1467,159 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 					}
 				}
 
+				// Update cursor overlay
+				const cursorOverlay = cursorOverlayRef.current;
+				if (cursorOverlay) {
+					const timeMs = currentTimeRef.current; // already in ms
+					cursorOverlay.update(
+						cursorTelemetryRef.current,
+						timeMs,
+						baseMaskRef.current,
+						showCursorRef.current && !hasNativeCursorRecordingRef.current,
+						!isPlayingRef.current || isSeekingRef.current,
+					);
+				}
+
+				// Keep the native cursor preview in the same transformed coordinate space as PIXI.
+				const nativeCursorSprite = nativeCursorSpriteRef.current;
+				const nativeCursorImage = nativeCursorImageRef.current;
+				const hideNativeCursorPreview = () => {
+					if (nativeCursorSprite) {
+						nativeCursorSprite.visible = false;
+					}
+					if (nativeCursorImage) {
+						nativeCursorImage.style.display = "none";
+						nativeCursorImage.style.filter = "none";
+					}
+					if (nativeCursorClipRef.current) {
+						nativeCursorClipRef.current.style.clipPath = "";
+					}
+					resetNativeCursorSmoothingState(nativeCursorSmoothingStateRef.current);
+					resetNativeCursorMotionBlurState(nativeCursorMotionBlurStateRef.current);
+				};
+				if (nativeCursorImage) {
+					if (hasNativeCursorRecordingRef.current && showCursorRef.current) {
+						const timeMs = currentTimeRef.current; // already in ms
+						const frame = resolveInterpolatedNativeCursorFrame(
+							cursorRecordingDataRef.current,
+							timeMs,
+						);
+						if (frame) {
+							const displaySample = smoothNativeCursorSample({
+								forceSnap: !isPlayingRef.current || isSeekingRef.current,
+								sample: frame.sample,
+								smoothing: cursorSmoothingRef.current,
+								state: nativeCursorSmoothingStateRef.current,
+								timeMs,
+							});
+							const cameraContainer = cameraContainerRef.current;
+							const videoContainer = videoContainerRef.current;
+							const cropRegionValue = cropRegionRef.current ?? { x: 0, y: 0, width: 1, height: 1 };
+							const projectedLocalPoint = projectNativeCursorToLocal({
+								cropRegion: cropRegionValue,
+								maskRect: baseMaskRef.current,
+								sample: displaySample,
+							});
+							const projectedStagePoint =
+								cameraContainer && videoContainer
+									? projectNativeCursorToStage({
+											cameraContainer,
+											cropRegion: cropRegionValue,
+											maskRect: baseMaskRef.current,
+											videoContainerPosition: {
+												x: videoContainer.x,
+												y: videoContainer.y,
+											},
+											sample: displaySample,
+										})
+									: null;
+							if (projectedLocalPoint && projectedStagePoint) {
+								// Pass deviceScaleFactor=1 — asset.scaleFactor already encodes DPR.
+								// Size is normalized below so preview matches export proportionally.
+								const renderAsset = resolveNativeCursorRenderAsset(frame.asset, 1, displaySample);
+								const bounceProgress = getNativeCursorClickBounceProgress(
+									cursorRecordingDataRef.current,
+									timeMs,
+								);
+								const scale =
+									Math.max(0, cursorSizeRef.current) *
+									getNativeCursorClickBounceScale(cursorClickBounceRef.current, bounceProgress);
+								// Normalize cursor size to the displayed video width so the cursor
+								// appears at the same fraction of the video in both preview and export.
+								const crop = cropRegionRef.current ?? { x: 0, y: 0, width: 1, height: 1 };
+								const croppedVideoWidth = (videoRef.current?.videoWidth ?? 0) * crop.width;
+								const sizeNorm =
+									croppedVideoWidth > 0 ? baseMaskRef.current.width / croppedVideoWidth : 1;
+								const transformedScale = scale * Math.abs(cameraContainer?.scale.x || 1) * sizeNorm;
+								const blurPx =
+									!isPlayingRef.current || isSeekingRef.current
+										? 0
+										: getNativeCursorMotionBlurPx({
+												motionBlur: cursorMotionBlurRef.current,
+												point: projectedStagePoint,
+												state: nativeCursorMotionBlurStateRef.current,
+												timeMs,
+											});
+								if (nativeCursorImageIdRef.current !== renderAsset.id) {
+									nativeCursorImage.src = renderAsset.imageDataUrl;
+									nativeCursorImageIdRef.current = renderAsset.id;
+								}
+								nativeCursorImage.style.display = "block";
+								// Update clip-path on nativeCursorClipRef to the camera-aware video boundary.
+								// clip-path works correctly here because nativeCursorClipRef is outside preserve-3d.
+								// When cursorClipToBounds is off, allow the cursor to overflow the canvas.
+								if (nativeCursorClipRef.current) {
+									if (!cursorClipToBoundsRef.current) {
+										nativeCursorClipRef.current.style.clipPath = "none";
+									} else {
+										const mask = baseMaskRef.current;
+										const stage = stageSizeRef.current;
+										const br = borderRadiusRef.current;
+										const s = cameraContainer ? Math.abs(cameraContainer.scale.x) : 1;
+										const camX = cameraContainer ? cameraContainer.position.x : 0;
+										const camY = cameraContainer ? cameraContainer.position.y : 0;
+										const clipLeft = camX + s * mask.x;
+										const clipTop = camY + s * mask.y;
+										const clipRight = camX + s * (mask.x + mask.width);
+										const clipBottom = camY + s * (mask.y + mask.height);
+										nativeCursorClipRef.current.style.clipPath = `inset(${clipTop}px ${stage.width - clipRight}px ${stage.height - clipBottom}px ${clipLeft}px round ${br * s}px)`;
+									}
+								}
+								nativeCursorImage.style.width = `${renderAsset.width * transformedScale}px`;
+								nativeCursorImage.style.height = `${renderAsset.height * transformedScale}px`;
+								nativeCursorImage.style.filter =
+									blurPx > 0 ? `blur(${blurPx.toFixed(2)}px)` : "none";
+								// translate3d is relative to nativeCursorClipRef (absolute inset-0 = stage origin).
+								// projectedStagePoint.x is the stage-space cursor position — no offset needed.
+								nativeCursorImage.style.transform = `translate3d(${
+									projectedStagePoint.x - renderAsset.hotspotX * transformedScale
+								}px, ${projectedStagePoint.y - renderAsset.hotspotY * transformedScale}px, 0)`;
+								if (nativeCursorSprite) {
+									nativeCursorSprite.visible = false;
+									if (nativeCursorTextureIdRef.current !== renderAsset.id) {
+										nativeCursorSprite.texture = Texture.from(renderAsset.imageDataUrl);
+										nativeCursorTextureIdRef.current = renderAsset.id;
+									}
+									nativeCursorSprite.position.set(
+										projectedLocalPoint.x - renderAsset.hotspotX * scale,
+										projectedLocalPoint.y - renderAsset.hotspotY * scale,
+									);
+									nativeCursorSprite.width = renderAsset.width * scale;
+									nativeCursorSprite.height = renderAsset.height * scale;
+								}
+							} else {
+								hideNativeCursorPreview();
+							}
+						} else {
+							hideNativeCursorPreview();
+						}
+					} else {
+						hideNativeCursorPreview();
+					}
+				} else {
+					hideNativeCursorPreview();
+				}
+
 				const composite3D = composite3DRef.current;
 				const outerWrapper = outerWrapperRef.current;
 				if (composite3D && outerWrapper) {
@@ -1152,6 +1633,9 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 							composite3D.style.transform = "";
 							composite3D.style.willChange = "auto";
 							lastTransformIsIdentity = true;
+						}
+						if (nativeCursorClipRef.current) {
+							nativeCursorClipRef.current.style.transform = "";
 						}
 						if (lastPerspectiveValue !== 0) {
 							outerWrapper.style.perspective = "";
@@ -1169,6 +1653,9 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 						);
 						composite3D.style.transform = `scale(${containScale}) rotateX(${effectiveRotation.rotationX}deg) rotateY(${effectiveRotation.rotationY}deg) rotateZ(${effectiveRotation.rotationZ}deg)`;
 						composite3D.style.willChange = "transform";
+						if (nativeCursorClipRef.current) {
+							nativeCursorClipRef.current.style.transform = composite3D.style.transform;
+						}
 						lastTransformIsIdentity = false;
 						if (persp !== lastPerspectiveValue) {
 							outerWrapper.style.perspective = `${persp}px`;
@@ -1188,8 +1675,13 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 
 		const handleLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
 			const video = e.currentTarget;
-			onDurationChange(video.duration);
-			video.currentTime = 0;
+			enableAllPreviewAudioTracks(video);
+			const hasResolvedDuration = syncResolvedDuration(video);
+			if (!hasResolvedDuration) {
+				forceResolveDuration(video);
+			} else {
+				video.currentTime = 0;
+			}
 			video.pause();
 			allowPlaybackRef.current = false;
 			currentTimeRef.current = 0;
@@ -1202,6 +1694,9 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 			const waitForRenderableFrame = () => {
 				const hasDimensions = video.videoWidth > 0 && video.videoHeight > 0;
 				const hasData = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA;
+				if (!syncResolvedDuration(video)) {
+					forceResolveDuration(video);
+				}
 				if (hasDimensions && hasData) {
 					videoReadyRafRef.current = null;
 					setVideoReady(true);
@@ -1300,6 +1795,10 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 				if (scrubEndTimerRef.current !== null) {
 					window.clearTimeout(scrubEndTimerRef.current);
 					scrubEndTimerRef.current = null;
+				}
+				if (durationResolutionTimeoutRef.current) {
+					clearTimeout(durationResolutionTimeoutRef.current);
+					durationResolutionTimeoutRef.current = null;
 				}
 			};
 		}, []);
@@ -1540,18 +2039,57 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(
 						</div>
 					)}
 				</div>
+				{/* Clip the native cursor overlay to the exact video canvas boundary.
+				    Placed OUTSIDE composite3DRef (preserve-3d) so clip-path works
+				    correctly even during 3D zoom rotation regions.
+				    clip-path is set dynamically to the camera-aware video bounds. */}
+				<div
+					ref={nativeCursorClipRef}
+					className="absolute inset-0"
+					style={{ zIndex: 18, pointerEvents: "none" }}
+				>
+					<img
+						ref={nativeCursorImageRef}
+						alt=""
+						aria-hidden="true"
+						className="absolute left-0 top-0 select-none"
+						style={{
+							display: "none",
+							pointerEvents: "none",
+							transformOrigin: "0 0",
+						}}
+					/>
+				</div>
 				<video
 					ref={videoRef}
 					src={videoPath}
 					className="hidden"
-					preload="metadata"
+					preload="auto"
 					playsInline
 					onLoadedMetadata={handleLoadedMetadata}
 					onDurationChange={(e) => {
-						onDurationChange(e.currentTarget.duration);
+						enableAllPreviewAudioTracks(e.currentTarget);
+						if (!syncResolvedDuration(e.currentTarget)) {
+							forceResolveDuration(e.currentTarget);
+						}
+					}}
+					onLoadedData={(e) => {
+						enableAllPreviewAudioTracks(e.currentTarget);
+						if (!syncResolvedDuration(e.currentTarget)) {
+							forceResolveDuration(e.currentTarget);
+						}
+					}}
+					onCanPlay={(e) => {
+						enableAllPreviewAudioTracks(e.currentTarget);
+						if (!syncResolvedDuration(e.currentTarget)) {
+							forceResolveDuration(e.currentTarget);
+						}
 					}}
 					onError={() => onError("Failed to load video")}
 				/>
+				{supplementalAudioPath && (
+					<audio ref={supplementalAudioRef} src={supplementalAudioPath} preload="auto" />
+				)}
 			</div>
 		);
 	},

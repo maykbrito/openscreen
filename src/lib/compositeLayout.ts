@@ -15,7 +15,11 @@ export interface Size {
 	height: number;
 }
 
-export type WebcamLayoutPreset = "picture-in-picture" | "vertical-stack" | "dual-frame";
+export type WebcamLayoutPreset =
+	| "picture-in-picture"
+	| "vertical-stack"
+	| "dual-frame"
+	| "no-webcam";
 /** Webcam size as a percentage of the canvas reference dimension (10–50). */
 export type WebcamSizePreset = number;
 
@@ -126,6 +130,21 @@ const WEBCAM_LAYOUT_PRESET_MAP: Record<WebcamLayoutPreset, WebcamLayoutPresetDef
 		},
 		shadow: null,
 	},
+	"no-webcam": {
+		label: "No Webcam",
+		transform: {
+			type: "overlay",
+			marginFraction: 0,
+			minMargin: 0,
+			minSize: 0,
+		},
+		borderRadius: {
+			max: 0,
+			min: 0,
+			fraction: 0,
+		},
+		shadow: null,
+	},
 };
 
 export const WEBCAM_LAYOUT_PRESETS = Object.entries(WEBCAM_LAYOUT_PRESET_MAP).map(
@@ -172,6 +191,17 @@ export function computeCompositeLayout(params: {
 	} = params;
 	const { width: canvasWidth, height: canvasHeight } = canvasSize;
 	const { width: screenWidth, height: screenHeight } = screenSize;
+
+	// "no-webcam" preset: hide the webcam entirely, screen fills the canvas normally
+	if (layoutPreset === "no-webcam") {
+		const screenRect = centerRect({
+			canvasSize,
+			size: screenSize,
+			maxSize: maxContentSize,
+		});
+		return { screenRect, webcamRect: null };
+	}
+
 	const webcamWidth = webcamSize?.width;
 	const webcamHeight = webcamSize?.height;
 	const preset = getWebcamLayoutPresetDefinition(layoutPreset);
@@ -371,9 +401,23 @@ function centerRectInBounds(params: { bounds: RenderRect; size: Size; maxSize: S
 	const { x: boundsX, y: boundsY, width: boundsWidth, height: boundsHeight } = bounds;
 	const { width, height } = size;
 	const { width: maxWidth, height: maxHeight } = maxSize;
-	const scale = Math.min(maxWidth / width, maxHeight / height, 1);
+	const scale = Math.min(maxWidth / width, maxHeight / height);
 	const resolvedWidth = Math.round(width * scale);
 	const resolvedHeight = Math.round(height * scale);
+
+	if (
+		maxWidth >= boundsWidth &&
+		maxHeight >= boundsHeight &&
+		Math.abs(boundsWidth - resolvedWidth) <= 1 &&
+		Math.abs(boundsHeight - resolvedHeight) <= 1
+	) {
+		return {
+			x: boundsX,
+			y: boundsY,
+			width: boundsWidth,
+			height: boundsHeight,
+		};
+	}
 
 	return {
 		x: boundsX + Math.max(0, Math.floor((boundsWidth - resolvedWidth) / 2)),

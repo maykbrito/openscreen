@@ -24,6 +24,26 @@ ipcMain.on("hud-overlay-hide", () => {
 	}
 });
 
+ipcMain.on("hud-overlay-ignore-mouse-events", (_event, ignore: boolean) => {
+	if (hudOverlayWindow && !hudOverlayWindow.isDestroyed()) {
+		hudOverlayWindow.setIgnoreMouseEvents(ignore, { forward: true });
+	}
+});
+
+ipcMain.on("hud-overlay-move-by", (_event, deltaX: number, deltaY: number) => {
+	if (
+		!hudOverlayWindow ||
+		hudOverlayWindow.isDestroyed() ||
+		!Number.isFinite(deltaX) ||
+		!Number.isFinite(deltaY)
+	) {
+		return;
+	}
+
+	const [x, y] = hudOverlayWindow.getPosition();
+	hudOverlayWindow.setPosition(Math.round(x + deltaX), Math.round(y + deltaY), false);
+});
+
 /**
  * Creates the always-on-top HUD overlay window centred at the bottom of the
  * primary display. The window is frameless, transparent, and follows the user
@@ -63,6 +83,7 @@ export function createHudOverlayWindow(): BrowserWindow {
 			backgroundThrottling: false,
 		},
 	});
+	win.setIgnoreMouseEvents(true, { forward: true });
 
 	// Follow the user across macOS Spaces (virtual desktops).
 	// Without this the HUD stays pinned to the Space it was first opened on.
