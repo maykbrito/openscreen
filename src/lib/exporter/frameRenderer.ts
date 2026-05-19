@@ -1172,7 +1172,6 @@ export class FrameRenderer {
 			this.videoSprite.destroy();
 			this.videoSprite = null;
 		}
-		this._videoSourceCtx = null;
 		this.backgroundSprite = null;
 		if (this.app) {
 			this.app.destroy(true, {
