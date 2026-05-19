@@ -18,16 +18,26 @@ export function PipelineSelector({
 	const t = useScopedT("settings");
 
 	return (
-		<div className="space-y-1.5">
-			<span className="text-xs font-medium text-muted-foreground">{t("export.pipeline")}</span>
-			<div className="flex gap-1.5">
+		<div className="space-y-2">
+			<span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">
+				{t("export.pipeline")}
+			</span>
+			<div className="relative flex rounded-lg border border-border/50 bg-muted/30 p-1">
+				{/* Animated pill background */}
+				<div
+					className="absolute top-1 bottom-1 rounded-md bg-background border border-border shadow-sm transition-all duration-200 ease-out"
+					style={{
+						left: value === "legacy" ? "4px" : "50%",
+						right: value === "lightning" ? "4px" : "50%",
+					}}
+				/>
 				<button
 					type="button"
 					onClick={() => onChange("legacy")}
-					className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+					className={`relative z-10 flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
 						value === "legacy"
-							? "bg-primary text-primary-foreground"
-							: "bg-muted text-muted-foreground hover:bg-muted/80"
+							? "text-foreground"
+							: "text-muted-foreground hover:text-foreground/70"
 					}`}
 				>
 					{t("export.pipelineLegacy")}
@@ -37,18 +47,21 @@ export function PipelineSelector({
 					onClick={() => lightningSupported && onChange("lightning")}
 					disabled={!lightningSupported}
 					title={!lightningSupported ? lightningSupportReason : undefined}
-					className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
+					className={`relative z-10 flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors flex items-center justify-center gap-1.5 ${
 						value === "lightning"
-							? "bg-amber-500 text-white"
+							? "text-foreground"
 							: lightningSupported
-								? "bg-muted text-muted-foreground hover:bg-muted/80"
-								: "bg-muted text-muted-foreground/50 cursor-not-allowed"
+								? "text-muted-foreground hover:text-foreground/70"
+								: "text-muted-foreground/40 cursor-not-allowed"
 					}`}
 				>
-					<Zap className="h-3 w-3" />
+					<Zap className="h-3.5 w-3.5" />
 					{t("export.pipelineLightning")}
 				</button>
 			</div>
+			<p className="text-xs text-muted-foreground">
+				{value === "lightning" ? t("export.pipelineLightningHint") : t("export.pipelineLegacyHint")}
+			</p>
 		</div>
 	);
 }
