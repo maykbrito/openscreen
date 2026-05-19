@@ -25,6 +25,16 @@ export interface UserPreferences {
 	exportFormat: ExportFormat;
 	/** Folder used for the most recent successful export, if any */
 	exportFolder: string | null;
+	/** Selected wallpaper index */
+	backgroundIndex: number;
+	/** Border radius in px */
+	borderRadius: number;
+	/** Shadow intensity (0-100) */
+	shadowIntensity: number;
+	/** Last directory used for opening video files */
+	lastOpenedDirectory: string | null;
+	/** Vertical panel split percentage */
+	panelHeight: number;
 }
 
 const DEFAULT_PREFS: UserPreferences = {
@@ -33,6 +43,11 @@ const DEFAULT_PREFS: UserPreferences = {
 	exportQuality: "good",
 	exportFormat: "mp4",
 	exportFolder: null,
+	backgroundIndex: 0,
+	borderRadius: 12,
+	shadowIntensity: 50,
+	lastOpenedDirectory: null,
+	panelHeight: 63.7,
 };
 
 function safeJsonParse(text: string | null): Record<string, unknown> | null {
@@ -83,6 +98,38 @@ export function loadUserPreferences(): UserPreferences {
 			typeof raw.exportFolder === "string" && raw.exportFolder.length > 0
 				? raw.exportFolder
 				: DEFAULT_PREFS.exportFolder,
+		backgroundIndex:
+			typeof raw.backgroundIndex === "number" &&
+			Number.isInteger(raw.backgroundIndex) &&
+			raw.backgroundIndex >= 0 &&
+			raw.backgroundIndex < 45
+				? raw.backgroundIndex
+				: DEFAULT_PREFS.backgroundIndex,
+		borderRadius:
+			typeof raw.borderRadius === "number" &&
+			Number.isFinite(raw.borderRadius) &&
+			raw.borderRadius >= 0 &&
+			raw.borderRadius <= 50
+				? raw.borderRadius
+				: DEFAULT_PREFS.borderRadius,
+		shadowIntensity:
+			typeof raw.shadowIntensity === "number" &&
+			Number.isFinite(raw.shadowIntensity) &&
+			raw.shadowIntensity >= 0 &&
+			raw.shadowIntensity <= 100
+				? raw.shadowIntensity
+				: DEFAULT_PREFS.shadowIntensity,
+		lastOpenedDirectory:
+			typeof raw.lastOpenedDirectory === "string" && raw.lastOpenedDirectory.length > 0
+				? raw.lastOpenedDirectory
+				: DEFAULT_PREFS.lastOpenedDirectory,
+		panelHeight:
+			typeof raw.panelHeight === "number" &&
+			Number.isFinite(raw.panelHeight) &&
+			raw.panelHeight >= 40 &&
+			raw.panelHeight <= 70
+				? raw.panelHeight
+				: DEFAULT_PREFS.panelHeight,
 	};
 }
 

@@ -2289,12 +2289,12 @@ export function registerIpcHandlers(
 		}
 	});
 
-	ipcMain.handle("open-video-file-picker", async () => {
+	ipcMain.handle("open-video-file-picker", async (_event, defaultDir?: string) => {
 		try {
 			const dialogOptions = buildDialogOptions(
 				{
 					title: mainT("dialogs", "fileDialogs.selectVideo"),
-					defaultPath: RECORDINGS_DIR,
+					defaultPath: defaultDir || RECORDINGS_DIR,
 					filters: [
 						{
 							name: mainT("dialogs", "fileDialogs.videoFiles"),

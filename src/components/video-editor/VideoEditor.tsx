@@ -40,7 +40,7 @@ import {
 	parentDirectoryOf,
 	saveUserPreferences,
 } from "@/lib/userPreferences";
-import { BackgroundLoadError } from "@/lib/wallpaper";
+import { BackgroundLoadError, WALLPAPER_PATHS } from "@/lib/wallpaper";
 import { nativeBridgeClient, useCursorRecordingData, useCursorTelemetry } from "@/native";
 import type { NativePlatform } from "@/native/contracts";
 import {
@@ -2029,9 +2029,20 @@ export default function VideoEditor() {
 			</div>
 
 			<div className="editor-workspace flex-1 min-h-0 relative">
-				<PanelGroup direction="vertical" className="gap-3 min-h-0">
+				<PanelGroup
+					direction="vertical"
+					className="gap-3 min-h-0"
+					onLayout={(sizes) => {
+						saveUserPreferences({ panelHeight: sizes[0] });
+					}}
+				>
 					{/* Top section: preview and contextual settings */}
-					<Panel defaultSize={67} maxSize={76} minSize={46} className="min-h-[300px]">
+					<Panel
+						defaultSize={loadUserPreferences().panelHeight}
+						maxSize={76}
+						minSize={46}
+						className="min-h-[300px]"
+					>
 						<div className="editor-main-deck h-full min-h-0">
 							<div className="editor-preview-zone min-w-0 h-full">
 								<div
@@ -2134,7 +2145,11 @@ export default function VideoEditor() {
 							<div className="editor-settings-rail min-w-0 h-full">
 								<SettingsPanel
 									selected={wallpaper}
-									onWallpaperChange={(w) => pushState({ wallpaper: w })}
+									onWallpaperChange={(w) => {
+										pushState({ wallpaper: w });
+										const idx = WALLPAPER_PATHS.indexOf(w);
+										if (idx >= 0) saveUserPreferences({ backgroundIndex: idx });
+									}}
 									selectedZoomDepth={
 										selectedZoomId ? zoomRegions.find((z) => z.id === selectedZoomId)?.depth : null
 									}
@@ -2176,7 +2191,10 @@ export default function VideoEditor() {
 									onTrimDelete={handleTrimDelete}
 									shadowIntensity={shadowIntensity}
 									onShadowChange={(v) => updateState({ shadowIntensity: v })}
-									onShadowCommit={commitState}
+									onShadowCommit={() => {
+										commitState();
+										saveUserPreferences({ shadowIntensity });
+									}}
 									showBlur={showBlur}
 									onBlurChange={(v) => pushState({ showBlur: v })}
 									motionBlurAmount={motionBlurAmount}
@@ -2184,10 +2202,16 @@ export default function VideoEditor() {
 									onMotionBlurCommit={commitState}
 									borderRadius={borderRadius}
 									onBorderRadiusChange={(v) => updateState({ borderRadius: v })}
-									onBorderRadiusCommit={commitState}
+									onBorderRadiusCommit={() => {
+										commitState();
+										saveUserPreferences({ borderRadius });
+									}}
 									padding={padding}
 									onPaddingChange={(v) => updateState({ padding: v })}
-									onPaddingCommit={commitState}
+									onPaddingCommit={() => {
+										commitState();
+										saveUserPreferences({ padding });
+									}}
 									cropRegion={cropRegion}
 									onCropChange={(r) => pushState({ cropRegion: r })}
 									aspectRatio={aspectRatio}

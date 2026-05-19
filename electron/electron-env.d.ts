@@ -177,7 +177,9 @@ interface Window {
 			message?: string;
 			error?: string;
 		}>;
-		openVideoFilePicker: () => Promise<{ success: boolean; path?: string; canceled?: boolean }>;
+		openVideoFilePicker: (
+			defaultDir?: string,
+		) => Promise<{ success: boolean; path?: string; canceled?: boolean }>;
 		setCurrentVideoPath: (path: string) => Promise<{ success: boolean }>;
 		setCurrentRecordingSession: (
 			session: import("../src/lib/recordingSession").RecordingSession | null,

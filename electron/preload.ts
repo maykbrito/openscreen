@@ -127,8 +127,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	writeExportToPath: (videoData: ArrayBuffer, filePath: string) => {
 		return ipcRenderer.invoke("write-export-to-path", videoData, filePath);
 	},
-	openVideoFilePicker: () => {
-		return ipcRenderer.invoke("open-video-file-picker");
+	openVideoFilePicker: (defaultDir?: string) => {
+		return ipcRenderer.invoke("open-video-file-picker", defaultDir);
 	},
 	setCurrentVideoPath: (path: string) => {
 		return ipcRenderer.invoke("set-current-video-path", path);

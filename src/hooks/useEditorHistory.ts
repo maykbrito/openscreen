@@ -17,7 +17,8 @@ import {
 	DEFAULT_WEBCAM_POSITION,
 	DEFAULT_WEBCAM_SIZE_PRESET,
 } from "@/components/video-editor/types";
-import { DEFAULT_WALLPAPER } from "@/lib/wallpaper";
+import { loadUserPreferences } from "@/lib/userPreferences";
+import { DEFAULT_WALLPAPER, WALLPAPER_PATHS } from "@/lib/wallpaper";
 import type { AspectRatio } from "@/utils/aspectRatioUtils";
 
 // Undoable state — selection IDs are intentionally excluded (undoing a
@@ -41,19 +42,21 @@ export interface EditorState {
 	webcamPosition: WebcamPosition | null;
 }
 
+const _prefs = loadUserPreferences();
+
 export const INITIAL_EDITOR_STATE: EditorState = {
 	zoomRegions: [],
 	trimRegions: [],
 	speedRegions: [],
 	annotationRegions: [],
 	cropRegion: DEFAULT_CROP_REGION,
-	wallpaper: DEFAULT_WALLPAPER,
-	shadowIntensity: 0,
+	wallpaper: WALLPAPER_PATHS[_prefs.backgroundIndex] ?? DEFAULT_WALLPAPER,
+	shadowIntensity: _prefs.shadowIntensity,
 	showBlur: false,
 	motionBlurAmount: 0,
-	borderRadius: 0,
-	padding: 50,
-	aspectRatio: "16:9",
+	borderRadius: _prefs.borderRadius,
+	padding: _prefs.padding,
+	aspectRatio: _prefs.aspectRatio,
 	webcamLayoutPreset: DEFAULT_WEBCAM_LAYOUT_PRESET,
 	webcamMaskShape: DEFAULT_WEBCAM_MASK_SHAPE,
 	webcamSizePreset: DEFAULT_WEBCAM_SIZE_PRESET,

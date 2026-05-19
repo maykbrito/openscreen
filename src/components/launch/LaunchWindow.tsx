@@ -21,6 +21,7 @@ import {
 import { RxDragHandleDots2 } from "react-icons/rx";
 import { useI18n, useScopedT } from "@/contexts/I18nContext";
 import { getAvailableLocales, getLocaleName } from "@/i18n/loader";
+import { loadUserPreferences, parentDirectoryOf, saveUserPreferences } from "@/lib/userPreferences";
 import { nativeBridgeClient } from "@/native";
 import { useAudioLevelMeter } from "../../hooks/useAudioLevelMeter";
 import { useCameraDevices } from "../../hooks/useCameraDevices";
@@ -333,13 +334,18 @@ export function LaunchWindow() {
 	};
 
 	const openVideoFile = async () => {
-		const result = await window.electronAPI.openVideoFilePicker();
+		const prefs = loadUserPreferences();
+		const result = await window.electronAPI.openVideoFilePicker(
+			prefs.lastOpenedDirectory ?? undefined,
+		);
 
 		if (result.canceled) {
 			return;
 		}
 
 		if (result.success && result.path) {
+			const dir = parentDirectoryOf(result.path);
+			if (dir) saveUserPreferences({ lastOpenedDirectory: dir });
 			const setVideoPathResult = await nativeBridgeClient.project.setCurrentVideoPath(result.path);
 			if (!setVideoPathResult.success) {
 				console.error("Failed to set current video path:", setVideoPathResult);
