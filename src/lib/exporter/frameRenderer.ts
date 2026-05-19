@@ -164,7 +164,6 @@ export class FrameRenderer {
 	private prevAnimationTimeMs: number | null = null;
 	private prevTargetProgress = 0;
 	private isLinux = false;
-	private _videoSourceCtx: CanvasRenderingContext2D | null = null;
 
 	constructor(config: FrameRenderConfig) {
 		this.config = config;
@@ -396,27 +395,19 @@ export class FrameRenderer {
 
 		this.currentVideoTime = timestamp / 1000000;
 
-		// Use an intermediary canvas as the texture source so we never destroy/recreate
-		// textures each frame. Destroying textures while filters reference them causes
-		// PixiJS "Cannot read properties of null" crashes in setResource/applyFilters.
-		// Instead, we drawImage the VideoFrame onto the canvas and call texture.update().
-		if (!this.videoSprite) {
-			// First frame: create a canvas-backed texture (persistent for entire export)
-			const videoCanvas = document.createElement("canvas");
-			videoCanvas.width = videoFrame.displayWidth;
-			videoCanvas.height = videoFrame.displayHeight;
-			const videoCtx = videoCanvas.getContext("2d")!;
-			videoCtx.drawImage(videoFrame, 0, 0);
-			this._videoSourceCtx = videoCtx;
-
-			const texture = Texture.from(videoCanvas as unknown as TextureSourceLike);
+		// Old working build (243 FPS) used Texture.from(videoFrame) directly each
+		// frame and destroyed the previous texture. The intermediate-canvas approach
+		// (drawImage VideoFrame → 2D canvas → texture.source.update) forced a GPU→CPU→GPU
+		// roundtrip per frame and killed throughput to ~6 FPS.
+		if (this.videoSprite) {
+			const oldTexture = this.videoSprite.texture;
+			const newTexture = Texture.from(videoFrame as unknown as TextureSourceLike);
+			this.videoSprite.texture = newTexture;
+			oldTexture.destroy(true);
+		} else {
+			const texture = Texture.from(videoFrame as unknown as TextureSourceLike);
 			this.videoSprite = new Sprite(texture);
 			this.videoContainer.addChild(this.videoSprite);
-		} else {
-			// Subsequent frames: just paint the new VideoFrame onto the same canvas
-			// and tell PixiJS the source changed.
-			this._videoSourceCtx!.drawImage(videoFrame, 0, 0);
-			this.videoSprite.texture.source.update();
 		}
 
 		// Apply layout
