@@ -106,7 +106,8 @@
 		"pipeline": "خط الأنابيب",
 		"pipelineLegacy": "تقليدي",
 		"pipelineLightning": "Lightning (تجريبي)",
-		"pipelineLightningDescription": "يستخدم Lightning (تجريبي) تلقائيًا أسرع واجهة خلفية متوافقة ويعود إلى الخيار البديل عند الحاجة."
+		"pipelineLightningHint": "Lightning (Beta) يستخدم تلقائيًا أسرع واجهة خلفية متوافقة ويتراجع عند الحاجة.",
+		"pipelineLegacyHint": "خط تصدير قياسي. أبطأ لكن بأقصى توافق."
 	},
 	"links": {
 		"reportBug": "الإبلاغ عن خطأ",

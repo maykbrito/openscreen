@@ -106,7 +106,8 @@
 		"pipeline": "Pipeline",
 		"pipelineLegacy": "Legacy",
 		"pipelineLightning": "Lightning (Beta)",
-		"pipelineLightningDescription": "Lightning (Beta) tự động sử dụng backend tương thích nhanh nhất và chuyển sang phương án dự phòng khi cần."
+		"pipelineLightningHint": "Lightning (Beta) tự động sử dụng backend tương thích nhanh nhất và chuyển sang phương án dự phòng khi cần.",
+		"pipelineLegacyHint": "Pipeline xuất tiêu chuẩn. Chậm hơn nhưng tương thích tối đa."
 	},
 	"links": {
 		"reportBug": "Báo cáo lỗi",

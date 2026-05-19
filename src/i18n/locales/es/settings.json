@@ -106,7 +106,8 @@
 		"pipeline": "Pipeline",
 		"pipelineLegacy": "Legado",
 		"pipelineLightning": "Lightning (Beta)",
-		"pipelineLightningDescription": "Lightning (Beta) usa automáticamente el backend compatible más rápido y recurre a uno alternativo cuando es necesario."
+		"pipelineLightningHint": "Lightning (Beta) usa automáticamente el backend más rápido compatible y recurre al alternativo cuando es necesario.",
+		"pipelineLegacyHint": "Pipeline de exportación estándar. Más lento pero máxima compatibilidad."
 	},
 	"links": {
 		"reportBug": "Reportar error",

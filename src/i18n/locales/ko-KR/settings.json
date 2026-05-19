@@ -106,7 +106,8 @@
 		"pipeline": "파이프라인",
 		"pipelineLegacy": "레거시",
 		"pipelineLightning": "Lightning (베타)",
-		"pipelineLightningDescription": "Lightning (베타)는 가장 빠른 호환 백엔드를 자동으로 사용하며 필요할 때 대체됩니다."
+		"pipelineLightningHint": "Lightning (Beta)은 가장 빠른 호환 백엔드를 자동으로 사용하고 필요시 폴백합니다.",
+		"pipelineLegacyHint": "표준 내보내기 파이프라인. 느리지만 최대 호환성."
 	},
 	"links": {
 		"reportBug": "버그 신고",

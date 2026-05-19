@@ -106,7 +106,8 @@
 		"pipeline": "Pipeline",
 		"pipelineLegacy": "Legacy",
 		"pipelineLightning": "Lightning (Beta)",
-		"pipelineLightningDescription": "Lightning (Beta) автоматически использует самый быстрый совместимый бэкенд и переключается при необходимости."
+		"pipelineLightningHint": "Lightning (Beta) автоматически использует самый быстрый совместимый бэкенд и переключается при необходимости.",
+		"pipelineLegacyHint": "Стандартный конвейер экспорта. Медленнее, но максимальная совместимость."
 	},
 	"links": {
 		"reportBug": "Сообщить об ошибке",
