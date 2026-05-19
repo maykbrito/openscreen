@@ -1134,11 +1134,19 @@ export class FrameRenderer {
 	}
 
 	private async waitForGPUFrame(): Promise<void> {
-		if (!this.config.preferWebGPU) return;
-		const renderer = this.app?.renderer as unknown as { gpu?: { device?: GPUDevice } };
-		const device: GPUDevice | undefined = renderer?.gpu?.device;
-		if (device) {
-			await device.queue.onSubmittedWorkDone();
+		if (!this.app) return;
+		if ("webgpu" !== this.getRendererType()) return;
+		const renderer = this.app.renderer as unknown as {
+			gpu?: { device?: GPUDevice };
+			device?: GPUDevice;
+		};
+		const device: GPUDevice | undefined = renderer?.gpu?.device ?? renderer?.device;
+		if (device?.queue?.onSubmittedWorkDone) {
+			try {
+				await device.queue.onSubmittedWorkDone();
+			} catch {
+				// ignore
+			}
 		}
 	}
 
