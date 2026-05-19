@@ -335,6 +335,10 @@ interface SettingsPanelProps {
 	onExportPipelineChange?: (pipeline: import("@/lib/exporter").ExportPipeline) => void;
 	lightningSupported?: boolean;
 	lightningSupportReason?: string;
+	compressFile?: boolean;
+	onCompressFileChange?: (v: boolean) => void;
+	speedUp?: boolean;
+	onSpeedUpChange?: (v: boolean) => void;
 }
 
 export default SettingsPanel;
@@ -465,6 +469,10 @@ export function SettingsPanel({
 	onExportPipelineChange,
 	lightningSupported = false,
 	lightningSupportReason,
+	compressFile = false,
+	onCompressFileChange,
+	speedUp = false,
+	onSpeedUpChange,
 }: SettingsPanelProps) {
 	const t = useScopedT("settings");
 	const [activePanelMode, setActivePanelMode] = useState<SettingsPanelMode>("background");
@@ -1942,6 +1950,42 @@ export function SettingsPanel({
 										lightningSupportReason={lightningSupportReason}
 									/>
 								)}
+							</div>
+						)}
+
+						{exportFormat === "mp4" && (
+							<div className="mb-3 space-y-2">
+								<div className="px-0.5 text-[10px] leading-none text-slate-500">
+									{t("postProcessing.title")}
+								</div>
+								<label className="flex items-center justify-between gap-2 px-1 cursor-pointer">
+									<div>
+										<div className="text-[11px] text-slate-300">
+											{t("postProcessing.compressFile")}
+										</div>
+										<div className="text-[9px] text-slate-500">
+											{t("postProcessing.compressFileDescription")}
+										</div>
+									</div>
+									<Switch
+										checked={compressFile}
+										onCheckedChange={onCompressFileChange}
+										className="data-[state=checked]:bg-[#34B27B] scale-75"
+									/>
+								</label>
+								<label className="flex items-center justify-between gap-2 px-1 cursor-pointer">
+									<div>
+										<div className="text-[11px] text-slate-300">{t("postProcessing.speedUp")}</div>
+										<div className="text-[9px] text-slate-500">
+											{t("postProcessing.speedUpDescription")}
+										</div>
+									</div>
+									<Switch
+										checked={speedUp}
+										onCheckedChange={onSpeedUpChange}
+										className="data-[state=checked]:bg-[#34B27B] scale-75"
+									/>
+								</label>
 							</div>
 						)}
 

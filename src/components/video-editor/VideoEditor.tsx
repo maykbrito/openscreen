@@ -217,6 +217,8 @@ export default function VideoEditor() {
 		hasWebGPU: false,
 		hasWebCodecs: false,
 	});
+	const [compressFile, setCompressFile] = useState(false);
+	const [speedUp, setSpeedUp] = useState(false);
 	const [gifFrameRate, setGifFrameRate] = useState<GifFrameRate>(15);
 	const [gifLoop, setGifLoop] = useState(true);
 	const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>("medium");
@@ -2138,6 +2140,8 @@ export default function VideoEditor() {
 		const settings: ExportSettings = {
 			format: exportFormat,
 			quality: exportFormat === "mp4" ? exportQuality : undefined,
+			compressFile: exportFormat === "mp4" ? compressFile : undefined,
+			speedUp: exportFormat === "mp4" ? speedUp : undefined,
 			gifConfig:
 				exportFormat === "gif"
 					? {
@@ -2168,6 +2172,8 @@ export default function VideoEditor() {
 		cropRegion,
 		handleExport,
 		handleFrameExport,
+		compressFile,
+		speedUp,
 	]);
 
 	const handleCancelExport = useCallback(() => {
@@ -2510,6 +2516,10 @@ export default function VideoEditor() {
 									onExportPipelineChange={setExportPipeline}
 									lightningSupported={lightningSupport.supported}
 									lightningSupportReason={lightningSupport.reason}
+									compressFile={compressFile}
+									onCompressFileChange={setCompressFile}
+									speedUp={speedUp}
+									onSpeedUpChange={setSpeedUp}
 									gifFrameRate={gifFrameRate}
 									onGifFrameRateChange={setGifFrameRate}
 									gifLoop={gifLoop}

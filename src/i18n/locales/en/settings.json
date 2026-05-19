@@ -90,6 +90,13 @@
 		"medium": "1080p",
 		"high": "Source"
 	},
+	"postProcessing": {
+		"title": "Post-processing",
+		"compressFile": "Reduce file size",
+		"compressFileDescription": "Re-encodes for ~85% smaller file",
+		"speedUp": "Speed up slightly (1.15x)",
+		"speedUpDescription": "Accelerates playback by 15%"
+	},
 	"gifSettings": {
 		"frameRate": "GIF Frame Rate",
 		"size": "GIF Size",
