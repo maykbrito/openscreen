@@ -154,6 +154,16 @@ System audio capture relies on Electron's [desktopCapturer](https://www.electron
 - **Windows**: Works out of the box.
 - **Linux**: Needs PipeWire (default on Ubuntu 22.04+, Fedora 34+). Older PulseAudio-only setups may not support system audio (mic should still work).
 
+## Development (macOS)
+
+After rebuilding locally, macOS invalidates the Screen Recording permission (ad-hoc signing = new identity each time). Use the dev build script to handle this automatically:
+
+```bash
+npm run build:mac:dev
+```
+
+This resets the TCC permission, copies the `.app` to `/Applications`, and the next launch will prompt once for Screen Recording cleanly.
+
 ## Built with
 - Electron
 - React

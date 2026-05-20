@@ -22,6 +22,7 @@
 		"preview": "vite preview",
 		"build:native:mac": "node scripts/build-macos-screencapturekit-helper.mjs",
 		"build:mac": "npm run build:native:mac && tsc && vite build && electron-builder --mac",
+		"build:mac:dev": "npm run build:mac && ./scripts/postbuild-mac-dev.sh",
 		"build:native:win": "node scripts/build-windows-wgc-helper.mjs",
 		"build:win": "npm run build:native:win && tsc && vite build && electron-builder --win --config.npmRebuild=false",
 		"build:linux": "tsc && vite build && electron-builder --linux AppImage deb pacman --config.npmRebuild=false",
